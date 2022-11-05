@@ -7,6 +7,7 @@
         "dist",
         "README.md"
     ],
+    "type": "module",
     "scripts": {
         "watch:rollup": "rollup -c --watch",
         "serve": "http-server serve -p 3333 --cors",
@@ -20,6 +21,7 @@
     "author": "Charles McKay Robertson",
     "license": "ISC",
     "devDependencies": {
+        "@rollup/plugin-json": "^5.0.1",
         "http-server": "^14.1.1",
         "npm-run-all": "^4.1.5",
         "rollup": "^3.2.3"
