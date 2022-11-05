@@ -571,14 +571,20 @@ function initializeEvolvContext(sandbox) {
     sandbox._evolvContext.updateState = () => {
         // Defaults the Evolv context state to active so you can run an experiment
         // even without the benefit of SPA handling.
-        if (!sandbox.id) return 'active';
+        if (!sandbox.id && !sandbox.isActive) return 'active';
 
-        sandbox._evolvContext.state =
-            document.documentElement.classList.contains(
-                'evolv_web_' + sandbox.id
-            )
+        if (sandbox.id) {
+            sandbox._evolvContext.state =
+                document.documentElement.classList.contains(
+                    'evolv_web_' + sandbox.id
+                )
+                    ? 'active'
+                    : 'inactive';
+        } else if (sandbox.isActive) {
+            sandbox._evolvContext.state = sandbox.isActive()
                 ? 'active'
                 : 'inactive';
+        }
 
         return sandbox._evolvContext.state;
     };

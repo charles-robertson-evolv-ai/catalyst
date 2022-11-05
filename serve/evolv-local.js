@@ -863,4 +863,24 @@
 
     processConfig();
 
+    // ------- Context
+
+    var rule = window.evolv.renderRule.exp;
+    var $$1 = rule.$;
+    rule.$$;
+    var store = rule.store;
+
+    store.instrumentDOM({
+        body: {
+            get dom() {
+                return $$1('body');
+            },
+        },
+        heading: {
+            get dom() {
+                return $$1('h1');
+            },
+        },
+    });
+
 })();

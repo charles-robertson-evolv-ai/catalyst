@@ -9,7 +9,15 @@ export default [
         plugins: [json()],
     },
     {
-        input: 'src/local/index-local.js',
+        input: 'src/local/evolv-local.js',
+        output: {
+            file: 'serve/evolv-local.js',
+            format: 'iife',
+        },
+        plugins: [json()],
+    },
+    {
+        input: 'src/local/catalyst-local.js',
         output: {
             file: 'serve/catalyst-local.js',
             format: 'iife',
