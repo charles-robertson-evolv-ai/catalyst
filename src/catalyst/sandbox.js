@@ -28,7 +28,7 @@ function initializeSandbox(name) {
             warn(`$$: Item ${name} not found in instrument item list`);
             return $();
         } else if (item.state === 'inactive') {
-            warn(`$$: Item ${name} is not currently on the page.`);
+            // warn(`$$: Item ${name} is not currently on the page.`);
             return $();
         }
 
@@ -49,7 +49,7 @@ function initializeSandbox(name) {
     sandbox.whenItem = initializeWhenItem(sandbox);
 
     // Backwards compatibility
-    sandbox.reactivate = sandbox.instrument.process();
+    sandbox.reactivate = sandbox.instrument.process;
 
     return sandbox;
 }

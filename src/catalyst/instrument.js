@@ -18,6 +18,52 @@ function initializeInstrument(sandbox) {
     instrument.definitions = {};
     instrument.items = {};
     instrument._onInstrument = [];
+    instrument._didItemChange = false;
+
+    function processItems(items, definitions) {
+        for (const key in definitions) {
+            processItem(key, items, definitions);
+        }
+    }
+
+    function processItem(key, items, definitions) {
+        // TODO: Refactor this block when restructure ENode
+        if (items[key] === undefined)
+            items[key] = { enode: $(), state: 'inactive' };
+        const item = items[key];
+        const enode = item.enode;
+        // const className = item.asClass || 'evolv-' + key;
+        const isOnPage = enode.isConnected();
+        const hasClass = enode.hasClass('evolv-' + key);
+
+        debug('process instrument:', `'${key}'`, [enode], isOnPage, hasClass);
+
+        const definition = definitions[key];
+
+        if (isOnPage && hasClass) {
+            processItems(definition.children);
+            return;
+        }
+
+        item.enode = definition['select']();
+
+        const oldState = item.state;
+        const newState = item.enode.doesExist() ? 'active' : 'inactive';
+        item.state = newState;
+
+        if (oldState === 'inactive' && newState === 'active') {
+            item.enode.addClass('evolv-' + key);
+            if (definition.onConnect)
+                definition.onConnect.forEach((func) => func());
+            instrument._didItemChange = true;
+            debug('process instrument: connect', `'${key}'`, item);
+        } else if (oldState === 'active' && newState === 'inactive') {
+            if (definition.onDisconnect)
+                definition.onDisconnect.forEach((func) => func());
+            instrument._didItemChange = true;
+            debug('process instrument: disconnect', `'${key}'`, item);
+        }
+    }
 
     instrument.process = debounce(() => {
         if (instrument._isProcessing) return;
@@ -25,58 +71,10 @@ function initializeInstrument(sandbox) {
 
         instrument._isProcessing = true;
         instrument._processCount++;
-        const items = instrument.items;
-        let didItemChange = false;
+        instrument._didItemChange = false;
         let then = performance.now();
 
-        function processItems(definitions) {
-            for (const key in definitions) {
-                // TODO: Refactor this block when restructure ENode
-                if (items[key] === undefined)
-                    items[key] = { enode: $(), state: 'inactive' };
-                const item = items[key];
-                const enode = item.enode;
-                // const className = item.asClass || 'evolv-' + key;
-                const isOnPage = enode.isConnected();
-                const hasClass = enode.hasClass('evolv-' + key);
-
-                debug(
-                    'process instrument:',
-                    `'${key}'`,
-                    [enode],
-                    isOnPage,
-                    hasClass
-                );
-
-                const definition = definitions[key];
-
-                if (isOnPage && hasClass) {
-                    processItems(definition.children);
-                    continue;
-                }
-
-                item.enode = definition['select']();
-
-                const oldState = item.state;
-                const newState = item.enode.doesExist() ? 'active' : 'inactive';
-                item.state = newState;
-
-                if (oldState === 'inactive' && newState === 'active') {
-                    item.enode.addClass('evolv-' + key);
-                    if (definition.onConnect)
-                        definition.onConnect.forEach((func) => func());
-                    didItemChange = true;
-                    debug('process instrument: connect', `'${key}'`, item);
-                } else if (oldState === 'active' && newState === 'inactive') {
-                    if (definition.onDisconnect)
-                        definition.onDisconnect.forEach((func) => func());
-                    didItemChange = true;
-                    debug('process instrument: disconnect', `'${key}'`, item);
-                }
-            }
-        }
-
-        processItems(instrument.definitions);
+        processItems(instrument.items, instrument.definitions);
 
         debug(
             'process instrument: complete',
@@ -87,7 +85,7 @@ function initializeInstrument(sandbox) {
         instrument._isProcessing = false;
 
         // Covers scenario where mutations are missed during long process
-        if (didItemChange) instrument.process();
+        if (instrument._didItemChange) instrument.process();
     });
 
     instrument.add = (key, select, options) => {

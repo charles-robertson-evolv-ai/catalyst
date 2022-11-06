@@ -430,6 +430,52 @@ function initializeInstrument(sandbox) {
     instrument.definitions = {};
     instrument.items = {};
     instrument._onInstrument = [];
+    instrument._didItemChange = false;
+
+    function processItems(items, definitions) {
+        for (const key in definitions) {
+            processItem(key, items, definitions);
+        }
+    }
+
+    function processItem(key, items, definitions) {
+        // TODO: Refactor this block when restructure ENode
+        if (items[key] === undefined)
+            items[key] = { enode: $(), state: 'inactive' };
+        const item = items[key];
+        const enode = item.enode;
+        // const className = item.asClass || 'evolv-' + key;
+        const isOnPage = enode.isConnected();
+        const hasClass = enode.hasClass('evolv-' + key);
+
+        debug('process instrument:', `'${key}'`, [enode], isOnPage, hasClass);
+
+        const definition = definitions[key];
+
+        if (isOnPage && hasClass) {
+            processItems(definition.children);
+            return;
+        }
+
+        item.enode = definition['select']();
+
+        const oldState = item.state;
+        const newState = item.enode.doesExist() ? 'active' : 'inactive';
+        item.state = newState;
+
+        if (oldState === 'inactive' && newState === 'active') {
+            item.enode.addClass('evolv-' + key);
+            if (definition.onConnect)
+                definition.onConnect.forEach((func) => func());
+            instrument._didItemChange = true;
+            debug('process instrument: connect', `'${key}'`, item);
+        } else if (oldState === 'active' && newState === 'inactive') {
+            if (definition.onDisconnect)
+                definition.onDisconnect.forEach((func) => func());
+            instrument._didItemChange = true;
+            debug('process instrument: disconnect', `'${key}'`, item);
+        }
+    }
 
     instrument.process = debounce(() => {
         if (instrument._isProcessing) return;
@@ -437,58 +483,10 @@ function initializeInstrument(sandbox) {
 
         instrument._isProcessing = true;
         instrument._processCount++;
-        const items = instrument.items;
-        let didItemChange = false;
+        instrument._didItemChange = false;
         let then = performance.now();
 
-        function processItems(definitions) {
-            for (const key in definitions) {
-                // TODO: Refactor this block when restructure ENode
-                if (items[key] === undefined)
-                    items[key] = { enode: $(), state: 'inactive' };
-                const item = items[key];
-                const enode = item.enode;
-                // const className = item.asClass || 'evolv-' + key;
-                const isOnPage = enode.isConnected();
-                const hasClass = enode.hasClass('evolv-' + key);
-
-                debug(
-                    'process instrument:',
-                    `'${key}'`,
-                    [enode],
-                    isOnPage,
-                    hasClass
-                );
-
-                const definition = definitions[key];
-
-                if (isOnPage && hasClass) {
-                    processItems(definition.children);
-                    continue;
-                }
-
-                item.enode = definition['select']();
-
-                const oldState = item.state;
-                const newState = item.enode.doesExist() ? 'active' : 'inactive';
-                item.state = newState;
-
-                if (oldState === 'inactive' && newState === 'active') {
-                    item.enode.addClass('evolv-' + key);
-                    if (definition.onConnect)
-                        definition.onConnect.forEach((func) => func());
-                    didItemChange = true;
-                    debug('process instrument: connect', `'${key}'`, item);
-                } else if (oldState === 'active' && newState === 'inactive') {
-                    if (definition.onDisconnect)
-                        definition.onDisconnect.forEach((func) => func());
-                    didItemChange = true;
-                    debug('process instrument: disconnect', `'${key}'`, item);
-                }
-            }
-        }
-
-        processItems(instrument.definitions);
+        processItems(instrument.items, instrument.definitions);
 
         debug(
             'process instrument: complete',
@@ -499,7 +497,7 @@ function initializeInstrument(sandbox) {
         instrument._isProcessing = false;
 
         // Covers scenario where mutations are missed during long process
-        if (didItemChange) instrument.process();
+        if (instrument._didItemChange) instrument.process();
     });
 
     instrument.add = (key, select, options) => {
@@ -567,37 +565,39 @@ function initializeInstrument(sandbox) {
 }
 
 function initializeEvolvContext(sandbox) {
+    const debug = sandbox.debug;
     sandbox._evolvContext = {};
-    sandbox._evolvContext.updateState = () => {
+    const evolvContext = sandbox._evolvContext;
+
+    evolvContext.updateState = () => {
         // Defaults the Evolv context state to active so you can run an experiment
         // even without the benefit of SPA handling.
-        if (!sandbox.id && !sandbox.isActive) return 'active';
-
-        if (sandbox.id) {
-            sandbox._evolvContext.state =
-                document.documentElement.classList.contains(
-                    'evolv_web_' + sandbox.id
-                )
-                    ? 'active'
-                    : 'inactive';
-        } else if (sandbox.isActive) {
-            sandbox._evolvContext.state = sandbox.isActive()
-                ? 'active'
-                : 'inactive';
+        if (!sandbox.id && !sandbox.isActive) {
+            evolvContext.state = 'active';
+            return 'active';
         }
 
-        return sandbox._evolvContext.state;
+        if (sandbox.id) {
+            evolvContext.state = document.documentElement.classList.contains(
+                'evolv_web_' + sandbox.id
+            )
+                ? 'active'
+                : 'inactive';
+        } else if (sandbox.isActive) {
+            // Deprecated
+            evolvContext.state = sandbox.isActive() ? 'active' : 'inactive';
+        }
+
+        return evolvContext.state;
     };
-    sandbox._evolvContext.state = sandbox._evolvContext.updateState();
-    sandbox._evolvContext.onActivate = [() => debug('evolv context: activate')];
-    sandbox._evolvContext.onDeactivate = [
-        () => debug('evolv context: deactivate'),
-    ];
+    evolvContext.state = evolvContext.updateState();
+    evolvContext.onActivate = [() => debug('evolv context: activate')];
+    evolvContext.onDeactivate = [() => debug('evolv context: deactivate')];
 
     // Backward compatibility
     sandbox.track = function (txt) {
-        var trackKey = 'evolv-' + this.exp;
-        var node = $('body');
+        var trackKey = 'evolv-' + this.name;
+        var node = sandbox.$('body');
         var tracking = node.attr(trackKey);
         tracking = tracking ? tracking + ' ' + txt : txt;
         node.attr({ [trackKey]: tracking });
@@ -607,7 +607,7 @@ function initializeEvolvContext(sandbox) {
 
 function initializeWhenContext(sandbox) {
     return (state) => {
-        debug(
+        sandbox.debug(
             `whenContext: queue callback for '${state}' state, current state: '${sandbox._evolvContext.state}'`
         );
 
@@ -643,7 +643,7 @@ function initializeWhenContext(sandbox) {
 
 function initializeWhenInstrument(sandbox) {
     return () => {
-        debug('whenInstrument: add function to instrument queue');
+        sandbox.debug('whenInstrument: add function to instrument queue');
 
         return {
             then: (func) => {
@@ -656,7 +656,9 @@ function initializeWhenInstrument(sandbox) {
 // Accepts select string or a select function like instrument does
 function initializeWhenDOM(sandbox) {
     return (select) => {
-        debug('whenDOM:', select);
+        sandbox.debug('whenDOM:', select);
+        const $ = sandbox.$;
+        const $$ = sandbox.$$;
         if (sandbox._whenDOMCount === undefined) sandbox._whenDOMCount = 0;
         let selectFunc;
 
@@ -665,7 +667,7 @@ function initializeWhenDOM(sandbox) {
             selectFunc = () => select;
         else if (typeof select === 'function') selectFunc = select;
         else {
-            warn(
+            sandbox.warn(
                 `whenDOM: unrecognized input ${select}, requires string, enode, or selection function`
             );
             return {
@@ -718,6 +720,50 @@ function initializeWhenDOM(sandbox) {
 }
 
 function initializeWhenItem(sandbox) {
+    const $$ = sandbox.$$;
+
+    return (key) => {
+        sandbox.debug('whenItem:', key);
+
+        const definition = sandbox.instrument.findDefinition(key);
+
+        if (definition === null) {
+            sandbox.warn(`whenItem: instrument item '${key}' not defined`);
+            return {
+                then: () => null,
+            };
+        }
+
+        let scope = null;
+
+        return {
+            then: function (func) {
+                scope = function () {
+                    definition.onConnect = [
+                        () => {
+                            func($$(key));
+                        },
+                    ];
+                };
+                scope();
+                sandbox.instrument.process;
+            },
+            // Deprecated
+            thenInBulk: function (func) {
+                scope = function () {
+                    definition.onConnect = [
+                        () => {
+                            func($$(key));
+                        },
+                    ];
+                };
+                scope();
+                sandbox.instrument.process;
+            },
+            // Deprecated
+            reactivateOnChange: function () {},
+        };
+    };
 }
 
 function initializeSandbox(name) {
@@ -739,7 +785,7 @@ function initializeSandbox(name) {
             warn(`$$: Item ${name} not found in instrument item list`);
             return $();
         } else if (item.state === 'inactive') {
-            warn(`$$: Item ${name} is not currently on the page.`);
+            // warn(`$$: Item ${name} is not currently on the page.`);
             return $();
         }
 
@@ -757,10 +803,10 @@ function initializeSandbox(name) {
     sandbox.whenContext = initializeWhenContext(sandbox);
     sandbox.whenInstrument = initializeWhenInstrument(sandbox);
     sandbox.whenDOM = initializeWhenDOM(sandbox);
-    sandbox.whenItem = initializeWhenItem();
+    sandbox.whenItem = initializeWhenItem(sandbox);
 
     // Backwards compatibility
-    sandbox.reactivate = sandbox.instrument.process();
+    sandbox.reactivate = sandbox.instrument.process;
 
     return sandbox;
 }
@@ -773,16 +819,33 @@ function initializeCatalyst() {
     catalyst.sandboxes = [];
     const debug = catalyst.debug;
 
+    // Creates proxy for window.evolv.catalyst that adds a new sandbox whenever
+    // a new property is accessed.
     let catalystProxy = new Proxy(catalyst, {
         get(target, name, receiver) {
-            let reflection = Reflect.get(target, name, receiver);
-            if (!reflection) {
-                target[name] = initializeSandbox(name);
-                reflection = Reflect.get(target, name, receiver);
-                catalyst.sandboxes.push(reflection);
+            let catalystReflection = Reflect.get(target, name, receiver);
+            if (!catalystReflection) {
+                const sandbox = initializeSandbox(name);
+
+                // Updates the context state to enable SPA handling if either
+                // property is set. isActive() is deprecated.
+                const sandboxProxy = new Proxy(sandbox, {
+                    set(target, property, value) {
+                        target[property] = value;
+
+                        if (property === 'id' || property === 'isActive') {
+                            sandbox._evolvContext.updateState();
+                        }
+
+                        return true;
+                    },
+                });
+                target[name] = sandboxProxy;
+                catalystReflection = Reflect.get(target, name, receiver);
+                catalyst.sandboxes.push(sandboxProxy);
             }
 
-            return reflection;
+            return catalystReflection;
         },
     });
 

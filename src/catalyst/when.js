@@ -2,7 +2,7 @@ import { ENode } from './enode';
 
 function initializeWhenContext(sandbox) {
     return (state) => {
-        debug(
+        sandbox.debug(
             `whenContext: queue callback for '${state}' state, current state: '${sandbox._evolvContext.state}'`
         );
 
@@ -38,7 +38,7 @@ function initializeWhenContext(sandbox) {
 
 function initializeWhenInstrument(sandbox) {
     return () => {
-        debug('whenInstrument: add function to instrument queue');
+        sandbox.debug('whenInstrument: add function to instrument queue');
 
         return {
             then: (func) => {
@@ -51,7 +51,9 @@ function initializeWhenInstrument(sandbox) {
 // Accepts select string or a select function like instrument does
 function initializeWhenDOM(sandbox) {
     return (select) => {
-        debug('whenDOM:', select);
+        sandbox.debug('whenDOM:', select);
+        const $ = sandbox.$;
+        const $$ = sandbox.$$;
         if (sandbox._whenDOMCount === undefined) sandbox._whenDOMCount = 0;
         let selectFunc;
 
@@ -60,7 +62,7 @@ function initializeWhenDOM(sandbox) {
             selectFunc = () => select;
         else if (typeof select === 'function') selectFunc = select;
         else {
-            warn(
+            sandbox.warn(
                 `whenDOM: unrecognized input ${select}, requires string, enode, or selection function`
             );
             return {
@@ -113,13 +115,15 @@ function initializeWhenDOM(sandbox) {
 }
 
 function initializeWhenItem(sandbox) {
-    (key) => {
-        debug('whenItem:', key);
+    const $$ = sandbox.$$;
+
+    return (key) => {
+        sandbox.debug('whenItem:', key);
 
         const definition = sandbox.instrument.findDefinition(key);
 
         if (definition === null) {
-            warn(`whenItem: instrument item '${key}' not defined`);
+            sandbox.warn(`whenItem: instrument item '${key}' not defined`);
             return {
                 then: () => null,
             };

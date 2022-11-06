@@ -7,16 +7,33 @@ export function initializeCatalyst() {
     catalyst.sandboxes = [];
     const debug = catalyst.debug;
 
+    // Creates proxy for window.evolv.catalyst that adds a new sandbox whenever
+    // a new property is accessed.
     let catalystProxy = new Proxy(catalyst, {
         get(target, name, receiver) {
-            let reflection = Reflect.get(target, name, receiver);
-            if (!reflection) {
-                target[name] = initializeSandbox(name);
-                reflection = Reflect.get(target, name, receiver);
-                catalyst.sandboxes.push(reflection);
+            let catalystReflection = Reflect.get(target, name, receiver);
+            if (!catalystReflection) {
+                const sandbox = initializeSandbox(name);
+
+                // Updates the context state to enable SPA handling if either
+                // property is set. isActive() is deprecated.
+                const sandboxProxy = new Proxy(sandbox, {
+                    set(target, property, value) {
+                        target[property] = value;
+
+                        if (property === 'id' || property === 'isActive') {
+                            sandbox._evolvContext.updateState();
+                        }
+
+                        return true;
+                    },
+                });
+                target[name] = sandboxProxy;
+                catalystReflection = Reflect.get(target, name, receiver);
+                catalyst.sandboxes.push(sandboxProxy);
             }
 
-            return reflection;
+            return catalystReflection;
         },
     });
 
