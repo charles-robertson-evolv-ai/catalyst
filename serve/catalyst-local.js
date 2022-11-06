@@ -507,31 +507,58 @@
         });
 
         instrument.add = (key, select, options) => {
-            debug('add instrument:', key, select, options);
+            function addItem(key, select, options) {
+                debug('add instrument:', key, select, options);
+                if (
+                    typeof key !== 'string' &&
+                    (typeof select !== 'function' || typeof select !== 'string')
+                ) {
+                    warn(
+                        `add instrument: requires item key string and selector string or select function`
+                    );
+                    return;
+                }
 
-            const newDefinition = {};
-            newDefinition.select = select;
+                const newDefinition = {};
+                if (typeof select === 'string') {
+                    newDefinition.select = () => $(select);
+                } else {
+                    newDefinition.select = select;
+                }
 
-            if (options) {
-                if (options.onConnect)
-                    newDefinition.onConnect = [options.onConnect];
-                if (options.onDisconnect)
-                    newDefinition.onDisconnect = [options.onDisconnect];
-                // if (options.asClass) newDefinition.asClass = options.asClass;
+                if (options) {
+                    if (options.onConnect)
+                        newDefinition.onConnect = [options.onConnect];
+                    if (options.onDisconnect)
+                        newDefinition.onDisconnect = [options.onDisconnect];
+                    // if (options.asClass) newDefinition.asClass = options.asClass;
+                }
+
+                let parent = {};
+                if (options && options.parent) {
+                    parent = instrument.findDefinition(options.parent);
+
+                    if (!parent)
+                        warn(
+                            `add instrument: parent '${options.parent}' not found`
+                        );
+                } else {
+                    instrument.definitions[key] = newDefinition;
+                }
+
+                parent.children = parent.children || {};
+                parent.children[key] = newDefinition;
             }
 
-            let parent = {};
-            if (options && options.parent) {
-                parent = instrument.findDefinition(options.parent);
-
-                if (!parent)
-                    warn(`add instrument: parent '${options.parent}' not found`);
+            if (Array.isArray(key)) {
+                key.forEach((item) => {
+                    addItem(...item);
+                });
             } else {
-                instrument.definitions[key] = newDefinition;
+                addItem(key, select, options);
             }
 
-            parent.children = parent.children || {};
-            parent.children[key] = newDefinition;
+            instrument.process();
         };
 
         instrument.findDefinition = (searchKey) => {
@@ -771,6 +798,16 @@
         };
     }
 
+    function initializeWhenElement(sandbox) {
+        return (select) => {
+            return {
+                then: function (func) {
+                    sandbox.whenDOM(select).then((el) => func(el.firstDom()));
+                },
+            };
+        };
+    }
+
     function initializeSandbox(name) {
         const sandbox = {};
         sandbox.name = name;
@@ -807,6 +844,7 @@
         sandbox.whenInstrument = initializeWhenInstrument(sandbox);
         sandbox.whenDOM = initializeWhenDOM(sandbox);
         sandbox.whenItem = initializeWhenItem(sandbox);
+        sandbox.whenElement = initializeWhenElement(sandbox);
 
         // Backwards compatibility
         sandbox.reactivate = sandbox.instrument.process;

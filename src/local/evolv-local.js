@@ -23,4 +23,10 @@ store.instrumentDOM({
     },
 });
 
-rule.whenDOM('.badger').then((badger) => log('FOUND THE BADGER', badger));
+rule.instrument.add([
+    ['images', 'img'],
+    ['buttons', () => $('button')],
+    ['h2', 'h2'],
+]);
+
+rule.whenElement('.badger').then((badger) => log('FOUND THE BADGER', badger));

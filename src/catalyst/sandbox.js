@@ -7,6 +7,7 @@ import {
     initializeWhenInstrument,
     initializeWhenDOM,
     initializeWhenItem,
+    initializeWhenElement,
 } from './when.js';
 
 function initializeSandbox(name) {
@@ -45,6 +46,7 @@ function initializeSandbox(name) {
     sandbox.whenInstrument = initializeWhenInstrument(sandbox);
     sandbox.whenDOM = initializeWhenDOM(sandbox);
     sandbox.whenItem = initializeWhenItem(sandbox);
+    sandbox.whenElement = initializeWhenElement(sandbox);
 
     // Backwards compatibility
     sandbox.reactivate = sandbox.instrument.process;

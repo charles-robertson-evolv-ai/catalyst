@@ -160,7 +160,29 @@ function initializeWhenItem(sandbox) {
     };
 }
 
-// whenElement
+function initializeWhenElement(sandbox) {
+    return (select) => {
+        return {
+            then: function (func) {
+                sandbox.whenDOM(select).then((el) => func(el.firstDom()));
+            },
+        };
+    };
+}
+
+function initializeWaitUntil(sandbox) {
+    return (condition) => {
+        sandbox._waitUntilQueue = [];
+        return new Promise((resolve, reject) => {
+            const interval = setInterval(() => {
+                if (condition()) {
+                    clearInterval(interval);
+                    return resolve(condition);
+                }
+            }, 17);
+        });
+    };
+}
 // waitUntil
 
 export {
@@ -168,4 +190,6 @@ export {
     initializeWhenInstrument,
     initializeWhenDOM,
     initializeWhenItem,
+    initializeWhenElement,
+    initializeWaitUntil,
 };
