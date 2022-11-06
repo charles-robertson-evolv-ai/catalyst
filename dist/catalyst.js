@@ -428,10 +428,10 @@ function initializeInstrument(sandbox) {
     const debug = sandbox.debug;
     const warn = sandbox.warn;
     const instrument = {};
-    instrument._isProcessing = false;
-    instrument._processCount = 0;
     instrument.definitions = {};
     instrument.items = {};
+    instrument._isProcessing = false;
+    instrument._processCount = 0;
     instrument._onInstrument = [];
     instrument._didItemChange = false;
 
@@ -442,41 +442,46 @@ function initializeInstrument(sandbox) {
     }
 
     function processItem(key, items, definitions) {
-        // TODO: Refactor this block when restructure ENode
-        if (items[key] === undefined)
-            items[key] = { enode: $(), state: 'inactive' };
+        const definition = definitions[key];
+
+        if (items[key] === undefined) {
+            let className;
+            if (definition.hasOwnProperty('asClass')) {
+                let asClass = definition.asClass;
+                className = asClass ? 'evolv-' + asClass : null;
+            } else className = 'evolv-' + key;
+
+            items[key] = {
+                enode: $(),
+                state: 'inactive',
+                className: className,
+            };
+        }
+
         const item = items[key];
         const enode = item.enode;
-        // const className = item.asClass || 'evolv-' + key;
+        const className = item.className;
         const isOnPage = enode.isConnected();
-        const hasClass = enode.hasClass('evolv-' + key);
+        const hasClass =
+            enode.hasClass(className) ||
+            (enode.doesExist() && className === null);
 
-        debug('process instrument:', `'${key}'`, [enode], isOnPage, hasClass);
-
-        const definition = definitions[key];
+        debug('process instrument:', `'${key}'`, isOnPage, hasClass);
 
         if (isOnPage && hasClass) {
             processItems(definition.children);
             return;
         }
-
         item.enode = definition['select']();
-
-        const oldState = item.state;
-        const newState = item.enode.doesExist() ? 'active' : 'inactive';
+        const newState = item.enode.isConnected() ? 'active' : 'inactive';
         item.state = newState;
 
-        if (oldState === 'inactive' && newState === 'active') {
-            item.enode.addClass('evolv-' + key);
+        if (newState === 'active') {
+            if (className) item.enode.addClass(className);
+            debug('process instrument: connect', `'${key}'`, item);
             if (definition.onConnect)
                 definition.onConnect.forEach((func) => func());
             instrument._didItemChange = true;
-            debug('process instrument: connect', `'${key}'`, item);
-        } else if (oldState === 'active' && newState === 'inactive') {
-            if (definition.onDisconnect)
-                definition.onDisconnect.forEach((func) => func());
-            instrument._didItemChange = true;
-            debug('process instrument: disconnect', `'${key}'`, item);
         }
     }
 
@@ -500,7 +505,10 @@ function initializeInstrument(sandbox) {
         instrument._isProcessing = false;
 
         // Covers scenario where mutations are missed during long process
-        if (instrument._didItemChange) instrument.process();
+        if (instrument._didItemChange) {
+            debug('process instrument: item changed, reprocessing');
+            instrument.process();
+        }
     });
 
     instrument.add = (key, select, options) => {
@@ -528,7 +536,8 @@ function initializeInstrument(sandbox) {
                     newDefinition.onConnect = [options.onConnect];
                 if (options.onDisconnect)
                     newDefinition.onDisconnect = [options.onDisconnect];
-                // if (options.asClass) newDefinition.asClass = options.asClass;
+                if (options.hasOwnProperty('asClass'))
+                    newDefinition.asClass = options.asClass;
             }
 
             let parent = {};
@@ -583,11 +592,11 @@ function initializeInstrument(sandbox) {
         for (const key in data) {
             const dataItem = data[key];
             const select = Object.getOwnPropertyDescriptor(dataItem, 'dom').get;
-            // const asClass = dataItem.asClass;
-            // const options = {};
-            // if (asClass) options.asClass = asClass;
+            const options = {};
+            if (dataItem.hasOwnProperty('asClass'))
+                options.asClass = dataItem.asClass;
 
-            instrument.add(key, select);
+            instrument.add(key, select, options);
         }
     };
 
@@ -638,7 +647,7 @@ function initializeEvolvContext(sandbox) {
 function initializeWhenContext(sandbox) {
     return (state) => {
         sandbox.debug(
-            `whenContext: queue callback for '${state}' state, current state: '${sandbox._evolvContext.state}'`
+            `whenContext: queue callback for '${state}' state, futurerrent state: '${sandbox._evolvContext.state}'`
         );
 
         if (state === 'active' || undefined) {
@@ -685,12 +694,20 @@ function initializeWhenInstrument(sandbox) {
 
 // Accepts select string or a select function like instrument does
 function initializeWhenDOM(sandbox) {
-    return (select) => {
+    sandbox._whenDOMCount = {};
+
+    return (select, options) => {
         sandbox.debug('whenDOM:', select);
         const $$ = sandbox.$$;
-        if (sandbox._whenDOMCount === undefined) sandbox._whenDOMCount = 0;
         let selectFunc;
+        let keyPrefix =
+            options && options.keyPrefix ? options.keyPrefix : 'when-dom-';
 
+        // Increment keys with different prefixes separately;
+        if (!sandbox._whenDOMCount[keyPrefix])
+            sandbox._whenDOMCount[keyPrefix] = 1;
+
+        // Accept string, enode, or select function
         if (typeof select === 'string') selectFunc = () => $(select);
         else if (typeof select === 'object' && select.constructor === ENode)
             selectFunc = () => select;
@@ -704,46 +721,40 @@ function initializeWhenDOM(sandbox) {
             };
         }
 
-        let scope = null;
-
         return {
-            then: function (func) {
-                scope = function (selectFunc) {
-                    const count = ++sandbox._whenDOMCount;
-                    const key = 'when-dom-' + count;
+            then: (callback) => {
+                const count = sandbox._whenDOMCount[keyPrefix]++;
+                const key = keyPrefix + count;
 
-                    sandbox.instrument.definitions[key] = {
-                        select: selectFunc,
-                        onConnect: [
-                            () => {
-                                func($$(key));
-                            },
-                        ],
-                    };
+                sandbox.instrument.definitions[key] = {
+                    select: selectFunc,
+                    onConnect: [
+                        () => {
+                            callback($$(key));
+                        },
+                    ],
+                    asClass: null,
                 };
-                scope(selectFunc);
-                sandbox.instrument.process;
+                sandbox.instrument.process();
             },
             // Deprecated
-            thenInBulk: function (func) {
-                scope = function (selectFunc) {
-                    const count = ++sandbox._whenDOMCount;
-                    const key = 'when-dom-' + count;
+            thenInBulk: (callback) => {
+                const count = sandbox._whenDOMCount[keyPrefix]++;
+                const key = keyPrefix + count;
 
-                    sandbox.instrument.definitions[key] = {
-                        select: selectFunc,
-                        onConnect: [
-                            () => {
-                                func($$(key));
-                            },
-                        ],
-                    };
+                sandbox.instrument.definitions[key] = {
+                    select: selectFunc,
+                    onConnect: [
+                        () => {
+                            callback($$(key));
+                        },
+                    ],
+                    asClass: null,
                 };
-                scope(selectFunc);
-                sandbox.instrument.process;
+                sandbox.instrument.process();
             },
             // Deprecated
-            reactivateOnChange: function () {},
+            reactivateOnChange: () => {},
         };
     };
 }
@@ -751,7 +762,7 @@ function initializeWhenDOM(sandbox) {
 function initializeWhenItem(sandbox) {
     const $$ = sandbox.$$;
 
-    return (key) => {
+    return (key, options) => {
         sandbox.debug('whenItem:', key);
 
         const definition = sandbox.instrument.findDefinition(key);
@@ -763,31 +774,25 @@ function initializeWhenItem(sandbox) {
             };
         }
 
-        let scope = null;
+        // let scope = null;
 
         return {
-            then: function (func) {
-                scope = function () {
-                    definition.onConnect = [
-                        () => {
-                            func($$(key));
-                        },
-                    ];
-                };
-                scope();
-                sandbox.instrument.process;
+            then: (callback) => {
+                definition.onConnect = [
+                    () => {
+                        callback($$(key));
+                    },
+                ];
+                sandbox.instrument.process();
             },
             // Deprecated
-            thenInBulk: function (func) {
-                scope = function () {
-                    definition.onConnect = [
-                        () => {
-                            func($$(key));
-                        },
-                    ];
-                };
-                scope();
-                sandbox.instrument.process;
+            thenInBulk: (callback) => {
+                definition.onConnect = [
+                    () => {
+                        callback($$(key));
+                    },
+                ];
+                sandbox.instrument.process();
             },
             // Deprecated
             reactivateOnChange: function () {},
@@ -799,7 +804,85 @@ function initializeWhenElement(sandbox) {
     return (select) => {
         return {
             then: function (func) {
-                sandbox.whenDOM(select).then((el) => func(el.firstDom()));
+                sandbox
+                    .whenDOM(select, { keyPrefix: 'when-element-' })
+                    .then((el) => func(el.firstDom()));
+            },
+        };
+    };
+}
+
+function initializeWaitUntil(sandbox) {
+    sandbox._intervalPoll = {
+        queue: [],
+        isPolling: false,
+        entryId: 0,
+        startPolling: () => {
+            sandbox.debug('waitUntil: start polling');
+            if (sandbox._intervalPoll.isPolling) return;
+            const intervalPoll = sandbox._intervalPoll;
+            intervalPoll.isPolling = true;
+            const queue = intervalPoll.queue;
+            const interval = setInterval(() => {
+                if (queue.length < 1) {
+                    sandbox.debug('waitUntil: queue empty, stop polling');
+                    clearInterval(interval);
+                    return;
+                }
+
+                for (let i = 0; i < queue.length; i++) {
+                    const entry = queue[i];
+
+                    // On first run
+                    if (!entry.startTime) {
+                        entry.id = intervalPoll.entryId++;
+                        entry.startTime = performance.now();
+                        if (entry.timeout) {
+                            sandbox.debug(
+                                `waitUntil: setting timeout for ${entry.timeout}ms`
+                            );
+                            setTimeout(() => {
+                                sandbox.debug(
+                                    'waitUntil: condition timed out',
+                                    entry
+                                );
+                                const futureIndex = queue.findIndex(
+                                    (futureEntry) => futureEntry.id === entry.id
+                                );
+                                queue.splice(futureIndex, 1);
+                            }, entry.timeout);
+                        }
+                    }
+
+                    if (entry.condition()) {
+                        sandbox.debug(
+                            'waitUntil: condition met:',
+                            entry.condition(),
+                            `(performance.now() - entry.startTime).toFixed(2)${ms}`
+                        );
+                        entry.callback();
+                        queue.splice(i, 1);
+                    }
+                }
+            }, 17);
+            sandbox._intervalPoll.isPolling = false;
+        },
+    };
+
+    return (condition, timeout) => {
+        sandbox.debug(
+            'waitUntil: add callback to queue, condition:',
+            condition
+        );
+        return {
+            then: (callback) => {
+                const queueEntry = {
+                    condition: condition,
+                    callback: () => callback(condition()),
+                };
+                if (timeout) queueEntry.timeout = timeout;
+                sandbox._intervalPoll.queue.push(queueEntry);
+                sandbox._intervalPoll.startPolling();
             },
         };
     };
@@ -819,8 +902,8 @@ function initializeSandbox(name) {
         const item = sandbox.instrument.items[name];
 
         if (!item) {
-            warn(`$$: Item ${name} not found in instrument item list`);
-            return $();
+            warn(`$$: '${name}' not found in instrument item list`);
+            return undefined;
         } else if (item.state === 'inactive') {
             // warn(`$$: Item ${name} is not currently on the page.`);
             return $();
@@ -842,6 +925,7 @@ function initializeSandbox(name) {
     sandbox.whenDOM = initializeWhenDOM(sandbox);
     sandbox.whenItem = initializeWhenItem(sandbox);
     sandbox.whenElement = initializeWhenElement(sandbox);
+    sandbox.waitUntil = initializeWaitUntil(sandbox);
 
     // Backwards compatibility
     sandbox.reactivate = sandbox.instrument.process;

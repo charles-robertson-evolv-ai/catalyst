@@ -14,10 +14,10 @@ function initializeInstrument(sandbox) {
     const debug = sandbox.debug;
     const warn = sandbox.warn;
     const instrument = {};
-    instrument._isProcessing = false;
-    instrument._processCount = 0;
     instrument.definitions = {};
     instrument.items = {};
+    instrument._isProcessing = false;
+    instrument._processCount = 0;
     instrument._onInstrument = [];
     instrument._didItemChange = false;
 
@@ -28,41 +28,53 @@ function initializeInstrument(sandbox) {
     }
 
     function processItem(key, items, definitions) {
-        // TODO: Refactor this block when restructure ENode
-        if (items[key] === undefined)
-            items[key] = { enode: $(), state: 'inactive' };
+        const definition = definitions[key];
+
+        if (items[key] === undefined) {
+            let className;
+            if (definition.hasOwnProperty('asClass')) {
+                let asClass = definition.asClass;
+                className = asClass ? 'evolv-' + asClass : null;
+            } else className = 'evolv-' + key;
+
+            items[key] = {
+                enode: $(),
+                state: 'inactive',
+                className: className,
+            };
+        }
+
         const item = items[key];
         const enode = item.enode;
-        // const className = item.asClass || 'evolv-' + key;
+        const className = item.className;
         const isOnPage = enode.isConnected();
-        const hasClass = enode.hasClass('evolv-' + key);
+        const hasClass =
+            enode.hasClass(className) ||
+            (enode.doesExist() && className === null);
 
-        debug('process instrument:', `'${key}'`, [enode], isOnPage, hasClass);
-
-        const definition = definitions[key];
+        debug('process instrument:', `'${key}'`, isOnPage, hasClass);
 
         if (isOnPage && hasClass) {
             processItems(definition.children);
             return;
         }
 
+        const oldState = 'inactive';
         item.enode = definition['select']();
-
-        const oldState = item.state;
-        const newState = item.enode.doesExist() ? 'active' : 'inactive';
+        const newState = item.enode.isConnected() ? 'active' : 'inactive';
         item.state = newState;
 
         if (oldState === 'inactive' && newState === 'active') {
-            item.enode.addClass('evolv-' + key);
+            if (className) item.enode.addClass(className);
+            debug('process instrument: connect', `'${key}'`, item);
             if (definition.onConnect)
                 definition.onConnect.forEach((func) => func());
             instrument._didItemChange = true;
-            debug('process instrument: connect', `'${key}'`, item);
         } else if (oldState === 'active' && newState === 'inactive') {
+            debug('process instrument: disconnect', `'${key}'`, item);
             if (definition.onDisconnect)
                 definition.onDisconnect.forEach((func) => func());
             instrument._didItemChange = true;
-            debug('process instrument: disconnect', `'${key}'`, item);
         }
     }
 
@@ -86,7 +98,10 @@ function initializeInstrument(sandbox) {
         instrument._isProcessing = false;
 
         // Covers scenario where mutations are missed during long process
-        if (instrument._didItemChange) instrument.process();
+        if (instrument._didItemChange) {
+            debug('process instrument: item changed, reprocessing');
+            instrument.process();
+        }
     });
 
     instrument.add = (key, select, options) => {
@@ -114,7 +129,8 @@ function initializeInstrument(sandbox) {
                     newDefinition.onConnect = [options.onConnect];
                 if (options.onDisconnect)
                     newDefinition.onDisconnect = [options.onDisconnect];
-                // if (options.asClass) newDefinition.asClass = options.asClass;
+                if (options.hasOwnProperty('asClass'))
+                    newDefinition.asClass = options.asClass;
             }
 
             let parent = {};
@@ -169,11 +185,11 @@ function initializeInstrument(sandbox) {
         for (const key in data) {
             const dataItem = data[key];
             const select = Object.getOwnPropertyDescriptor(dataItem, 'dom').get;
-            // const asClass = dataItem.asClass;
-            // const options = {};
-            // if (asClass) options.asClass = asClass;
+            const options = {};
+            if (dataItem.hasOwnProperty('asClass'))
+                options.asClass = dataItem.asClass;
 
-            instrument.add(key, select);
+            instrument.add(key, select, options);
         }
     };
 

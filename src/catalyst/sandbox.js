@@ -8,6 +8,7 @@ import {
     initializeWhenDOM,
     initializeWhenItem,
     initializeWhenElement,
+    initializeWaitUntil,
 } from './when.js';
 
 function initializeSandbox(name) {
@@ -24,8 +25,8 @@ function initializeSandbox(name) {
         const item = sandbox.instrument.items[name];
 
         if (!item) {
-            warn(`$$: Item ${name} not found in instrument item list`);
-            return $();
+            warn(`$$: '${name}' not found in instrument item list`);
+            return undefined;
         } else if (item.state === 'inactive') {
             // warn(`$$: Item ${name} is not currently on the page.`);
             return $();
@@ -47,6 +48,7 @@ function initializeSandbox(name) {
     sandbox.whenDOM = initializeWhenDOM(sandbox);
     sandbox.whenItem = initializeWhenItem(sandbox);
     sandbox.whenElement = initializeWhenElement(sandbox);
+    sandbox.waitUntil = initializeWaitUntil(sandbox);
 
     // Backwards compatibility
     sandbox.reactivate = sandbox.instrument.process;

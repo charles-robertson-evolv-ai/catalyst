@@ -3,7 +3,7 @@ import { $, ENode } from './enode';
 function initializeWhenContext(sandbox) {
     return (state) => {
         sandbox.debug(
-            `whenContext: queue callback for '${state}' state, current state: '${sandbox._evolvContext.state}'`
+            `whenContext: queue callback for '${state}' state, futurerrent state: '${sandbox._evolvContext.state}'`
         );
 
         if (state === 'active' || undefined) {
@@ -50,12 +50,20 @@ function initializeWhenInstrument(sandbox) {
 
 // Accepts select string or a select function like instrument does
 function initializeWhenDOM(sandbox) {
-    return (select) => {
+    sandbox._whenDOMCount = {};
+
+    return (select, options) => {
         sandbox.debug('whenDOM:', select);
         const $$ = sandbox.$$;
-        if (sandbox._whenDOMCount === undefined) sandbox._whenDOMCount = 0;
         let selectFunc;
+        let keyPrefix =
+            options && options.keyPrefix ? options.keyPrefix : 'when-dom-';
 
+        // Increment keys with different prefixes separately;
+        if (!sandbox._whenDOMCount[keyPrefix])
+            sandbox._whenDOMCount[keyPrefix] = 1;
+
+        // Accept string, enode, or select function
         if (typeof select === 'string') selectFunc = () => $(select);
         else if (typeof select === 'object' && select.constructor === ENode)
             selectFunc = () => select;
@@ -69,46 +77,40 @@ function initializeWhenDOM(sandbox) {
             };
         }
 
-        let scope = null;
-
         return {
-            then: function (func) {
-                scope = function (selectFunc) {
-                    const count = ++sandbox._whenDOMCount;
-                    const key = 'when-dom-' + count;
+            then: (callback) => {
+                const count = sandbox._whenDOMCount[keyPrefix]++;
+                const key = keyPrefix + count;
 
-                    sandbox.instrument.definitions[key] = {
-                        select: selectFunc,
-                        onConnect: [
-                            () => {
-                                func($$(key));
-                            },
-                        ],
-                    };
+                sandbox.instrument.definitions[key] = {
+                    select: selectFunc,
+                    onConnect: [
+                        () => {
+                            callback($$(key));
+                        },
+                    ],
+                    asClass: null,
                 };
-                scope(selectFunc);
-                sandbox.instrument.process;
+                sandbox.instrument.process();
             },
             // Deprecated
-            thenInBulk: function (func) {
-                scope = function (selectFunc) {
-                    const count = ++sandbox._whenDOMCount;
-                    const key = 'when-dom-' + count;
+            thenInBulk: (callback) => {
+                const count = sandbox._whenDOMCount[keyPrefix]++;
+                const key = keyPrefix + count;
 
-                    sandbox.instrument.definitions[key] = {
-                        select: selectFunc,
-                        onConnect: [
-                            () => {
-                                func($$(key));
-                            },
-                        ],
-                    };
+                sandbox.instrument.definitions[key] = {
+                    select: selectFunc,
+                    onConnect: [
+                        () => {
+                            callback($$(key));
+                        },
+                    ],
+                    asClass: null,
                 };
-                scope(selectFunc);
-                sandbox.instrument.process;
+                sandbox.instrument.process();
             },
             // Deprecated
-            reactivateOnChange: function () {},
+            reactivateOnChange: () => {},
         };
     };
 }
@@ -116,7 +118,7 @@ function initializeWhenDOM(sandbox) {
 function initializeWhenItem(sandbox) {
     const $$ = sandbox.$$;
 
-    return (key) => {
+    return (key, options) => {
         sandbox.debug('whenItem:', key);
 
         const definition = sandbox.instrument.findDefinition(key);
@@ -128,31 +130,25 @@ function initializeWhenItem(sandbox) {
             };
         }
 
-        let scope = null;
+        // let scope = null;
 
         return {
-            then: function (func) {
-                scope = function () {
-                    definition.onConnect = [
-                        () => {
-                            func($$(key));
-                        },
-                    ];
-                };
-                scope();
-                sandbox.instrument.process;
+            then: (callback) => {
+                definition.onConnect = [
+                    () => {
+                        callback($$(key));
+                    },
+                ];
+                sandbox.instrument.process();
             },
             // Deprecated
-            thenInBulk: function (func) {
-                scope = function () {
-                    definition.onConnect = [
-                        () => {
-                            func($$(key));
-                        },
-                    ];
-                };
-                scope();
-                sandbox.instrument.process;
+            thenInBulk: (callback) => {
+                definition.onConnect = [
+                    () => {
+                        callback($$(key));
+                    },
+                ];
+                sandbox.instrument.process();
             },
             // Deprecated
             reactivateOnChange: function () {},
@@ -164,26 +160,89 @@ function initializeWhenElement(sandbox) {
     return (select) => {
         return {
             then: function (func) {
-                sandbox.whenDOM(select).then((el) => func(el.firstDom()));
+                sandbox
+                    .whenDOM(select, { keyPrefix: 'when-element-' })
+                    .then((el) => func(el.firstDom()));
             },
         };
     };
 }
 
 function initializeWaitUntil(sandbox) {
-    return (condition) => {
-        sandbox._waitUntilQueue = [];
-        return new Promise((resolve, reject) => {
+    sandbox._intervalPoll = {
+        queue: [],
+        isPolling: false,
+        entryId: 0,
+        startPolling: () => {
+            sandbox.debug('waitUntil: start polling');
+            if (sandbox._intervalPoll.isPolling) return;
+            const intervalPoll = sandbox._intervalPoll;
+            intervalPoll.isPolling = true;
+            const queue = intervalPoll.queue;
             const interval = setInterval(() => {
-                if (condition()) {
+                if (queue.length < 1) {
+                    sandbox.debug('waitUntil: queue empty, stop polling');
                     clearInterval(interval);
-                    return resolve(condition);
+                    return;
+                }
+
+                for (let i = 0; i < queue.length; i++) {
+                    const entry = queue[i];
+
+                    // On first run
+                    if (!entry.startTime) {
+                        entry.id = intervalPoll.entryId++;
+                        entry.startTime = performance.now();
+                        if (entry.timeout) {
+                            sandbox.debug(
+                                `waitUntil: setting timeout for ${entry.timeout}ms`
+                            );
+                            setTimeout(() => {
+                                sandbox.debug(
+                                    'waitUntil: condition timed out',
+                                    entry
+                                );
+                                const futureIndex = queue.findIndex(
+                                    (futureEntry) => futureEntry.id === entry.id
+                                );
+                                queue.splice(futureIndex, 1);
+                            }, entry.timeout);
+                        }
+                    }
+
+                    if (entry.condition()) {
+                        sandbox.debug(
+                            'waitUntil: condition met:',
+                            entry.condition(),
+                            `(performance.now() - entry.startTime).toFixed(2)${ms}`
+                        );
+                        entry.callback();
+                        queue.splice(i, 1);
+                    }
                 }
             }, 17);
-        });
+            sandbox._intervalPoll.isPolling = false;
+        },
+    };
+
+    return (condition, timeout) => {
+        sandbox.debug(
+            'waitUntil: add callback to queue, condition:',
+            condition
+        );
+        return {
+            then: (callback) => {
+                const queueEntry = {
+                    condition: condition,
+                    callback: () => callback(condition()),
+                };
+                if (timeout) queueEntry.timeout = timeout;
+                sandbox._intervalPoll.queue.push(queueEntry);
+                sandbox._intervalPoll.startPolling();
+            },
+        };
     };
 }
-// waitUntil
 
 export {
     initializeWhenContext,
