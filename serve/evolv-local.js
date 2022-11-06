@@ -413,6 +413,10 @@
         return new ENode(this.lastDom());
     };
 
+    var $$1 = (select) => {
+        return new ENode(select);
+    };
+
     function debounce(func, timeout = 17) {
         let timer;
         return (...args) => {
@@ -424,7 +428,6 @@
     }
 
     function initializeInstrument(sandbox) {
-        const $ = sandbox.$;
         const debug = sandbox.debug;
         const warn = sandbox.warn;
         const instrument = {};
@@ -444,7 +447,7 @@
         function processItem(key, items, definitions) {
             // TODO: Refactor this block when restructure ENode
             if (items[key] === undefined)
-                items[key] = { enode: $(), state: 'inactive' };
+                items[key] = { enode: $$1(), state: 'inactive' };
             const item = items[key];
             const enode = item.enode;
             // const className = item.asClass || 'evolv-' + key;
@@ -600,7 +603,7 @@
         // Backward compatibility
         sandbox.track = function (txt) {
             var trackKey = 'evolv-' + this.name;
-            var node = sandbox.$('body');
+            var node = $$1('body');
             var tracking = node.attr(trackKey);
             tracking = tracking ? tracking + ' ' + txt : txt;
             node.attr({ [trackKey]: tracking });
@@ -660,12 +663,11 @@
     function initializeWhenDOM(sandbox) {
         return (select) => {
             sandbox.debug('whenDOM:', select);
-            const $ = sandbox.$;
             const $$ = sandbox.$$;
             if (sandbox._whenDOMCount === undefined) sandbox._whenDOMCount = 0;
             let selectFunc;
 
-            if (typeof select === 'string') selectFunc = () => $(select);
+            if (typeof select === 'string') selectFunc = () => $$1(select);
             else if (typeof select === 'object' && select.constructor === ENode)
                 selectFunc = () => select;
             else if (typeof select === 'function') selectFunc = select;
@@ -778,23 +780,21 @@
         const warn = sandbox.warn;
         if (name !== 'catalyst') sandbox.debug(`init context: ${name}`);
 
-        sandbox.$ = (select) => {
-            return new ENode(select);
-        };
+        sandbox.$ = $$1;
         sandbox.$$ = (name) => {
             const item = sandbox.instrument.items[name];
 
             if (!item) {
                 warn(`$$: Item ${name} not found in instrument item list`);
-                return $();
+                return $$1();
             } else if (item.state === 'inactive') {
                 // warn(`$$: Item ${name} is not currently on the page.`);
-                return $();
+                return $$1();
             }
 
             return item.enode;
         };
-        const $ = sandbox.$;
+
         sandbox.$$;
 
         sandbox.store = {};
@@ -932,6 +932,7 @@
     var $ = rule.$;
     rule.$$;
     var store = rule.store;
+    var log = rule.log;
 
     store.instrumentDOM({
         body: {
@@ -945,5 +946,7 @@
             },
         },
     });
+
+    rule.whenDOM('.badger').then((badger) => log('FOUND THE BADGER', badger));
 
 })();

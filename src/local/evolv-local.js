@@ -8,6 +8,7 @@ var rule = window.evolv.renderRule.exp;
 var $ = rule.$;
 var $$ = rule.$$;
 var store = rule.store;
+var log = rule.log;
 
 store.instrumentDOM({
     body: {
@@ -21,3 +22,5 @@ store.instrumentDOM({
         },
     },
 });
+
+rule.whenDOM('.badger').then((badger) => log('FOUND THE BADGER', badger));

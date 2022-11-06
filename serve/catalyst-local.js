@@ -413,6 +413,10 @@
         return new ENode(this.lastDom());
     };
 
+    var $ = (select) => {
+        return new ENode(select);
+    };
+
     function debounce(func, timeout = 17) {
         let timer;
         return (...args) => {
@@ -424,7 +428,6 @@
     }
 
     function initializeInstrument(sandbox) {
-        const $ = sandbox.$;
         const debug = sandbox.debug;
         const warn = sandbox.warn;
         const instrument = {};
@@ -600,7 +603,7 @@
         // Backward compatibility
         sandbox.track = function (txt) {
             var trackKey = 'evolv-' + this.name;
-            var node = sandbox.$('body');
+            var node = $('body');
             var tracking = node.attr(trackKey);
             tracking = tracking ? tracking + ' ' + txt : txt;
             node.attr({ [trackKey]: tracking });
@@ -660,7 +663,6 @@
     function initializeWhenDOM(sandbox) {
         return (select) => {
             sandbox.debug('whenDOM:', select);
-            const $ = sandbox.$;
             const $$ = sandbox.$$;
             if (sandbox._whenDOMCount === undefined) sandbox._whenDOMCount = 0;
             let selectFunc;
@@ -778,9 +780,7 @@
         const warn = sandbox.warn;
         if (name !== 'catalyst') sandbox.debug(`init context: ${name}`);
 
-        sandbox.$ = (select) => {
-            return new ENode(select);
-        };
+        sandbox.$ = $;
         sandbox.$$ = (name) => {
             const item = sandbox.instrument.items[name];
 
@@ -794,7 +794,7 @@
 
             return item.enode;
         };
-        const $ = sandbox.$;
+
         sandbox.$$;
 
         sandbox.store = {};

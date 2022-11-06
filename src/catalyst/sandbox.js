@@ -1,5 +1,5 @@
 import { initializeLogs } from './logs';
-import { ENode } from './enode';
+import { $ } from './enode';
 import { initializeInstrument } from './instrument';
 import { initializeEvolvContext } from './evolv-context';
 import {
@@ -18,9 +18,7 @@ function initializeSandbox(name) {
     const warn = sandbox.warn;
     if (name !== 'catalyst') sandbox.debug(`init context: ${name}`);
 
-    sandbox.$ = (select) => {
-        return new ENode(select);
-    };
+    sandbox.$ = $;
     sandbox.$$ = (name) => {
         const item = sandbox.instrument.items[name];
 
@@ -34,7 +32,7 @@ function initializeSandbox(name) {
 
         return item.enode;
     };
-    const $ = sandbox.$;
+
     const $$ = sandbox.$$;
 
     sandbox.store = {};

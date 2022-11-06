@@ -1,4 +1,4 @@
-import { ENode } from './enode';
+import { $, ENode } from './enode';
 
 function initializeWhenContext(sandbox) {
     return (state) => {
@@ -52,7 +52,6 @@ function initializeWhenInstrument(sandbox) {
 function initializeWhenDOM(sandbox) {
     return (select) => {
         sandbox.debug('whenDOM:', select);
-        const $ = sandbox.$;
         const $$ = sandbox.$$;
         if (sandbox._whenDOMCount === undefined) sandbox._whenDOMCount = 0;
         let selectFunc;

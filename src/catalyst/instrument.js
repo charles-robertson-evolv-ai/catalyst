@@ -1,3 +1,5 @@
+import { $ } from './enode';
+
 function debounce(func, timeout = 17) {
     let timer;
     return (...args) => {
@@ -9,7 +11,6 @@ function debounce(func, timeout = 17) {
 }
 
 function initializeInstrument(sandbox) {
-    const $ = sandbox.$;
     const debug = sandbox.debug;
     const warn = sandbox.warn;
     const instrument = {};

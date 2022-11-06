@@ -356,4 +356,8 @@ ENode.prototype.last = function () {
     return new ENode(this.lastDom());
 };
 
-export { ENode };
+var $ = (select) => {
+    return new ENode(select);
+};
+
+export { $, ENode };

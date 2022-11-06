@@ -1,3 +1,5 @@
+import { $ } from './enode';
+
 function initializeEvolvContext(sandbox) {
     const debug = sandbox.debug;
     sandbox._evolvContext = {};
@@ -31,7 +33,7 @@ function initializeEvolvContext(sandbox) {
     // Backward compatibility
     sandbox.track = function (txt) {
         var trackKey = 'evolv-' + this.name;
-        var node = sandbox.$('body');
+        var node = $('body');
         var tracking = node.attr(trackKey);
         tracking = tracking ? tracking + ' ' + txt : txt;
         node.attr({ [trackKey]: tracking });
