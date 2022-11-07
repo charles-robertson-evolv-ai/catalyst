@@ -31,9 +31,10 @@ rule.instrument.add([
     ['h2', 'h2'],
 ]);
 
-rule.whenElement('.badger').then((badger) => log('FOUND THE BADGER', badger));
-
-rule.whenItem('h2').then((h2) => log('WHENITEM: FOUND H2', h2));
+rule.whenElement('.badger').then((badger) => {
+    log('FOUND THE BADGER', badger);
+    rule.whenItem('h2').then((h2) => log('WHENITEM: FOUND H2', h2));
+});
 
 rule.whenDOM('p').then((p) => log('WHENDOM: p', p));
 

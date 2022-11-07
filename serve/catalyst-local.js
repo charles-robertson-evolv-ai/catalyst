@@ -814,11 +814,20 @@
 
             return {
                 then: (callback) => {
-                    definition.onConnect = [
-                        () => {
-                            callback($$(key));
-                        },
-                    ];
+                    // Don't add duplicate callbacks
+                    const newEntry = () => {
+                        callback($$(key));
+                    };
+                    const newEntryString = newEntry.toString();
+                    if (!definition.onConnect) definition.onConnect = [];
+                    else if (
+                        definition.onConnect.findIndex(
+                            (entry) => entry.toString() === newEntryString
+                        ) !== -1
+                    )
+                        return;
+
+                    definition.onConnect.push(newEntry);
                     sandbox.instrument.process();
                 },
                 // Deprecated

@@ -814,11 +814,20 @@
 
             return {
                 then: (callback) => {
-                    definition.onConnect = [
-                        () => {
-                            callback($$(key));
-                        },
-                    ];
+                    // Don't add duplicate callbacks
+                    const newEntry = () => {
+                        callback($$(key));
+                    };
+                    const newEntryString = newEntry.toString();
+                    if (!definition.onConnect) definition.onConnect = [];
+                    else if (
+                        definition.onConnect.findIndex(
+                            (entry) => entry.toString() === newEntryString
+                        ) !== -1
+                    )
+                        return;
+
+                    definition.onConnect.push(newEntry);
                     sandbox.instrument.process();
                 },
                 // Deprecated
@@ -1115,9 +1124,10 @@
         ['h2', 'h2'],
     ]);
 
-    rule.whenElement('.badger').then((badger) => log('FOUND THE BADGER', badger));
-
-    rule.whenItem('h2').then((h2) => log('WHENITEM: FOUND H2', h2));
+    rule.whenElement('.badger').then((badger) => {
+        log('FOUND THE BADGER', badger);
+        rule.whenItem('h2').then((h2) => log('WHENITEM: FOUND H2', h2));
+    });
 
     rule.whenDOM('p').then((p) => log('WHENDOM: p', p));
 
