@@ -145,7 +145,11 @@ ENode.prototype.parent = function () {
         return e.parentNode;
     });
     parents = parents.filter(function (item, pos) {
-        return parents.indexOf(item) == pos;
+        return (
+            parents.indexOf(item) == pos &&
+            item !== null &&
+            item.nodeName !== '#document-fragment'
+        );
     });
     return new ENode(parents);
 };
@@ -159,16 +163,20 @@ ENode.prototype.children = function (sel) {
 };
 ENode.prototype.next = function () {
     return new ENode(
-        this.el.map(function (e) {
-            return e.nextElementSibling;
-        })
+        this.el
+            .map(function (e) {
+                return e.nextElementSibling;
+            })
+            .filter((e) => e)
     );
 };
 ENode.prototype.prev = function () {
     return new ENode(
-        this.el.map(function (e) {
-            return e.previousElementSibling;
-        })
+        this.el
+            .map(function (e) {
+                return e.previousElementSibling || [];
+            })
+            .filter((e) => e)
     );
 };
 

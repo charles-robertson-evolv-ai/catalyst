@@ -4,7 +4,7 @@ export default [
     {
         input: 'src/catalyst/index.js',
         output: {
-            file: 'dist/catalyst.js',
+            file: 'dist/index.js',
         },
         plugins: [json()],
     },

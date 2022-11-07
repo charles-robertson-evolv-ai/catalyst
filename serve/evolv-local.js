@@ -202,7 +202,11 @@
             return e.parentNode;
         });
         parents = parents.filter(function (item, pos) {
-            return parents.indexOf(item) == pos;
+            return (
+                parents.indexOf(item) == pos &&
+                item !== null &&
+                item.nodeName !== '#document-fragment'
+            );
         });
         return new ENode(parents);
     };
@@ -216,15 +220,17 @@
     };
     ENode.prototype.next = function () {
         return new ENode(
-            this.el.map(function (e) {
-                return e.nextElementSibling;
-            })
+            this.el
+                .map(function (e) {
+                    return e.nextElementSibling;
+                })
+                .filter((e) => e)
         );
     };
     ENode.prototype.prev = function () {
         return new ENode(
             this.el.map(function (e) {
-                return e.previousElementSibling;
+                return e.previousElementSibling || [];
             })
         );
     };
@@ -1012,7 +1018,7 @@
         return sandbox;
     }
 
-    var version = "0.1.11";
+    var version = "0.1.12";
 
     function initializeCatalyst() {
         var catalyst = initializeSandbox('catalyst');

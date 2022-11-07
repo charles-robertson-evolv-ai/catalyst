@@ -1,6 +1,6 @@
 {
     "name": "@charles-evolv/catalyst-dev",
-    "version": "0.1.11",
+    "version": "0.1.12",
     "description": "Upgrading the Catalyst core and adding new features",
     "main": "dist/index.js",
     "files": [
