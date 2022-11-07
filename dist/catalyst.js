@@ -85,7 +85,7 @@ function toMultiNodeValue(select, context) {
         if (select[0] === '<') {
             var template = context.createElement('template');
             template.innerHTML = select.trim();
-            return [template.content.childNodes];
+            return Array.from(template.content.childNodes);
         } else if (select[0] === '/') {
             var snapshot = document.evaluate(
                 select,
@@ -415,8 +415,15 @@ ENode.prototype.watch = function (options) {
 };
 
 //getting first and last elements
+ENode.prototype.firstDOM = function () {
+    return this.el[0];
+};
+// Deprecated
 ENode.prototype.firstDom = function () {
     return this.el[0];
+};
+ENode.prototype.lastDOM = function () {
+    return this.el.slice(-1)[0];
 };
 ENode.prototype.lastDom = function () {
     return this.el.slice(-1)[0];

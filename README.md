@@ -789,7 +789,7 @@ The `on()` method adds event listeners to the specified selector.
 
 | Syntax                    | Description                                                                     | Returns      |
 | :------------------------ | :------------------------------------------------------------------------------ | :----------- |
-| ENode.on(event, function) | Event: String containing event<br>Function: A function to be fired on the event | ENode (self) |
+| ENode.on(event, function) | Event: String containing event tag or multiple event tags separated by a space<br>Function: A function to be fired on the event | ENode (self) |
 
 ```html
 <button>Continue</button>
@@ -800,6 +800,8 @@ $('button').on('click', (event) => {
     console.log('test');
 });
 // Output: Prints "test" to the console every time the button is clicked
+
+// Add multiple event tag example here
 ```
 
 ---
