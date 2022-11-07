@@ -27,7 +27,7 @@ function initializeSandbox(name) {
         if (!item) {
             warn(`$$: '${name}' not found in instrument item list`);
             return undefined;
-        } else if (item.state === 'inactive') {
+        } else if (!item.enode.isConnected()) {
             // warn(`$$: Item ${name} is not currently on the page.`);
             return $();
         }

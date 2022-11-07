@@ -39,38 +39,43 @@ function initializeInstrument(sandbox) {
 
             items[key] = {
                 enode: $(),
-                state: 'inactive',
+                // state: 'inactive',
                 className: className,
             };
         }
 
         const item = items[key];
         const enode = item.enode;
+        const newEnode = definition['select']();
         const className = item.className;
-        const isOnPage = enode.isConnected();
+        // const oldState = item.state;
+        const wasConnected = enode.isConnected();
+        const isConnected = newEnode.isConnected();
         const hasClass =
-            enode.hasClass(className) ||
-            (enode.doesExist() && className === null);
+            newEnode.hasClass(className) ||
+            (newEnode.doesExist() && className === null);
+        // const newState = isConnected && hasClass ? 'active' : 'inactive';
 
-        debug('process instrument:', `'${key}'`, isOnPage, hasClass);
+        debug('process instrument:', `'${key}'`, {
+            wasConnected,
+            isConnected,
+            hasClass,
+        });
 
-        if (isOnPage && hasClass) {
+        if (wasConnected && isConnected && hasClass) {
             processItems(definition.children);
-            return;
-        }
-
-        const oldState = 'inactive';
-        item.enode = definition['select']();
-        const newState = item.enode.isConnected() ? 'active' : 'inactive';
-        item.state = newState;
-
-        if (oldState === 'inactive' && newState === 'active') {
+        } else if (
+            (!wasConnected && isConnected) ||
+            (isConnected && !hasClass)
+        ) {
+            item.enode = newEnode;
             if (className) item.enode.addClass(className);
             debug('process instrument: connect', `'${key}'`, item);
             if (definition.onConnect)
                 definition.onConnect.forEach((func) => func());
             instrument._didItemChange = true;
-        } else if (oldState === 'active' && newState === 'inactive') {
+        } else if (wasConnected && !isConnected) {
+            item.enode = newEnode;
             debug('process instrument: disconnect', `'${key}'`, item);
             if (definition.onDisconnect)
                 definition.onDisconnect.forEach((func) => func());
