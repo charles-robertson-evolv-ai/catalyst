@@ -139,13 +139,18 @@ function initializeWhenItem(sandbox) {
                     callback($$(key));
                 };
                 const newEntryString = newEntry.toString();
-                if (!definition.onConnect) definition.onConnect = [];
-                else if (
+                if (!definition.onConnect) {
+                    definition.onConnect = [];
+                } else if (
                     definition.onConnect.findIndex(
                         (entry) => entry.toString() === newEntryString
                     ) !== -1
-                )
+                ) {
+                    sandbox.debug(
+                        `whenItem: Duplicate callback ${newEntryString}, not assigned to item '${key}'`
+                    );
                     return;
+                }
 
                 definition.onConnect.push(newEntry);
                 sandbox.instrument.process();
