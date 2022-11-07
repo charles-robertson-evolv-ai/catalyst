@@ -136,6 +136,19 @@
         );
     };
 
+    ENode.prototype.isEqualTo = function (enode) {
+        if (enode.constructor !== ENode) {
+            return false;
+        } else if (this.length !== enode.length) {
+            return false;
+        } else {
+            for (let i = 0; i < this.length; i++) {
+                if (this.el[i] !== enode.el[i]) return false;
+            }
+        }
+        return true;
+    };
+
     // Filters
     ENode.prototype.filter = function (sel) {
         var el = this.el;
