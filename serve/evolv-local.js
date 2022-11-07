@@ -55,49 +55,67 @@
         };
     }
 
-    function toNodeValue(sel, context) {
+    function toSingleNodeValue(select, context) {
         context = context || document;
-        if (!sel) {
+        if (!select) {
             return [];
-        } else if (typeof sel === 'string') {
-            if (sel[0] === '<') {
-                var div = context.createElement('div');
-                div.innerHTML = sel.trim();
-                return [div.firstChild];
-            } else if (sel[0] === '/') {
+        } else if (typeof select === 'string') {
+            if (select[0] === '<') {
+                var template = document.createElement('template');
+                template.innerHTML = select.trim();
+                return [template.content.firstChild];
+            } else if (select[0] === '/') {
+                var firstNode = document.evaluate(
+                    select,
+                    context,
+                    null,
+                    XPathResult.FIRST_ORDERED_NODE_TYPE,
+                    null
+                ).singleNodeValue;
+                return [firstNode];
+            } else return [context.querySelector(select)];
+        } else if (select instanceof Element) return [select];
+        else if (select.constructor === ENode) return select.el.slice(0, 1);
+        else if (Array.isArray(select)) return select.slice(0, 1);
+        else return [];
+    }
+
+    function toMultiNodeValue(select, context) {
+        context = context || document;
+        if (!select) {
+            return [];
+        } else if (typeof select === 'string') {
+            if (select[0] === '<') {
+                var template = context.createElement('template');
+                template.innerHTML = select.trim();
+                return [template.content.childNodes];
+            } else if (select[0] === '/') {
                 var snapshot = document.evaluate(
-                    sel,
+                    select,
                     context,
                     null,
                     XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
                     null
                 );
-
-                // Can this be refactored using function.prototype.apply()?
-                var el = [];
-
-                for (var i = 0; i < snapshot.snapshotLength; i++) {
+                var length = snapshot.snapshotLength;
+                var el = new Array(length);
+                for (var i = 0; i < length; i++) {
                     el[i] = snapshot.snapshotItem(i);
                 }
-
                 return el;
             } else {
-                return context.querySelectorAll(sel);
+                return Array.from(context.querySelectorAll(select));
             }
-        } else if (sel instanceof Element) {
-            return [sel];
-        } else if (sel.constructor === ENode) {
-            return sel.el;
-        } else if (Array.isArray(sel)) {
-            return sel;
-        } else {
-            return [];
-        }
+        } else if (select instanceof Element) return [select];
+        else if (select.constructor === ENode) return select.el;
+        else if (Array.isArray(select)) return select;
+        else return [];
     }
 
-    const ENode = function (sel, context) {
+    const ENode = function (select, context, toNodeValueFunc) {
         context = context || document;
-        var el = toNodeValue(sel, context);
+        toNodeValueFunc = toNodeValueFunc || toMultiNodeValue;
+        var el = toNodeValueFunc(select, context);
         this.el = Array.prototype.slice.call(el);
         this.length = this.el.length;
     };
@@ -152,7 +170,7 @@
         return new ENode(
             el
                 .map(function (e) {
-                    return Array.prototype.slice.call(toNodeValue(sel, e));
+                    return Array.prototype.slice.call(toMultiNodeValue(sel, e));
                 })
                 .flat(2)
         );
@@ -220,7 +238,7 @@
         var node = this.el[0];
         if (!node) return;
 
-        var items = toNodeValue(item);
+        var items = toMultiNodeValue(item);
         items.forEach(function (e) {
             node.append(e);
         });
@@ -232,7 +250,7 @@
         var node = this.el[0];
         if (!node) return;
 
-        var items = toNodeValue(item);
+        var items = toMultiNodeValue(item);
         items.forEach(function (e) {
             node.prepend(e);
         });
@@ -413,8 +431,16 @@
         return new ENode(this.lastDom());
     };
 
-    var $ = (select) => {
-        return new ENode(select);
+    var $$1 = (select, context) => {
+        return new ENode(select, context);
+    };
+
+    var select = (select, context) => {
+        return new ENode(select, context, toSingleNodeValue);
+    };
+
+    var selectAll = (select, context) => {
+        return new ENode(select, context, toMultiNodeValue);
     };
 
     function debounce(func, timeout = 17) {
@@ -455,7 +481,7 @@
                 } else className = 'evolv-' + key;
 
                 items[key] = {
-                    enode: $(),
+                    enode: $$1(),
                     state: 'inactive',
                     className: className,
                 };
@@ -529,7 +555,7 @@
 
                 const newDefinition = {};
                 if (typeof select === 'string') {
-                    newDefinition.select = () => $(select);
+                    newDefinition.select = () => $$1(select);
                 } else {
                     newDefinition.select = select;
                 }
@@ -639,7 +665,7 @@
         // Backward compatibility
         sandbox.track = function (txt) {
             var trackKey = 'evolv-' + this.name;
-            var node = $('body');
+            var node = $$1('body');
             var tracking = node.attr(trackKey);
             tracking = tracking ? tracking + ' ' + txt : txt;
             node.attr({ [trackKey]: tracking });
@@ -711,7 +737,7 @@
                 sandbox._whenDOMCount[keyPrefix] = 1;
 
             // Accept string, enode, or select function
-            if (typeof select === 'string') selectFunc = () => $(select);
+            if (typeof select === 'string') selectFunc = () => $$1(select);
             else if (typeof select === 'object' && select.constructor === ENode)
                 selectFunc = () => select;
             else if (typeof select === 'function') selectFunc = select;
@@ -861,7 +887,9 @@
                             sandbox.debug(
                                 'waitUntil: condition met:',
                                 entry.condition(),
-                                `(performance.now() - entry.startTime).toFixed(2)${ms}`
+                                `${(performance.now() - entry.startTime).toFixed(
+                                2
+                            )}ms`
                             );
                             entry.callback();
                             queue.splice(i, 1);
@@ -900,7 +928,7 @@
         const warn = sandbox.warn;
         if (name !== 'catalyst') sandbox.debug(`init context: ${name}`);
 
-        sandbox.$ = $;
+        sandbox.$ = $$1;
         sandbox.$$ = (name) => {
             const item = sandbox.instrument.items[name];
 
@@ -909,11 +937,13 @@
                 return undefined;
             } else if (item.state === 'inactive') {
                 // warn(`$$: Item ${name} is not currently on the page.`);
-                return $();
+                return $$1();
             }
 
             return item.enode;
         };
+        sandbox.select = select;
+        sandbox.selectAll = selectAll;
 
         sandbox.$$;
 
@@ -1046,12 +1076,15 @@
         }
     }
 
+    // import { $ } from '../catalyst/enode';
+
     processConfig();
 
     // ------- Context
 
     var rule = window.evolv.renderRule.exp;
-    rule.$$;
+    const $ = rule.select;
+    var $$ = rule.selectAll;
     var store = rule.store;
     var log = rule.log;
 
@@ -1086,5 +1119,7 @@
     );
 
     rule.waitUntil(() => window.y, 5000).then((y) => log('WAITUNTIL y:', y));
+
+    log('SETUP CONTEXT', $('//a'), $$('div'));
 
 })();

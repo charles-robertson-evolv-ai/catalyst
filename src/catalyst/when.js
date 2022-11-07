@@ -214,7 +214,9 @@ function initializeWaitUntil(sandbox) {
                         sandbox.debug(
                             'waitUntil: condition met:',
                             entry.condition(),
-                            `(performance.now() - entry.startTime).toFixed(2)${ms}`
+                            `${(performance.now() - entry.startTime).toFixed(
+                                2
+                            )}ms`
                         );
                         entry.callback();
                         queue.splice(i, 1);

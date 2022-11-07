@@ -1,12 +1,13 @@
 import { processConfig } from '../catalyst/catalyst.js';
-import { $ } from '../catalyst/enode';
+// import { $ } from '../catalyst/enode';
 
 processConfig();
 
 // ------- Context
 
 var rule = window.evolv.renderRule.exp;
-var $$ = rule.$$;
+const $ = rule.select;
+var $$ = rule.selectAll;
 var store = rule.store;
 var log = rule.log;
 
@@ -41,3 +42,5 @@ rule.waitUntil(() => window.vzdl.page.name).then((pageName) =>
 );
 
 rule.waitUntil(() => window.y, 5000).then((y) => log('WAITUNTIL y:', y));
+
+log('SETUP CONTEXT', $('//a'), $$('div'));

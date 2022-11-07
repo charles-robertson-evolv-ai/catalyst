@@ -1,5 +1,5 @@
 import { initializeLogs } from './logs';
-import { $ } from './enode';
+import { $, select, selectAll } from './enode';
 import { initializeInstrument } from './instrument';
 import { initializeEvolvContext } from './evolv-context';
 import {
@@ -34,6 +34,8 @@ function initializeSandbox(name) {
 
         return item.enode;
     };
+    sandbox.select = select;
+    sandbox.selectAll = selectAll;
 
     const $$ = sandbox.$$;
 
