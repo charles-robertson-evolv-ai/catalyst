@@ -49,6 +49,9 @@ function initializeWhenInstrument(sandbox) {
 }
 
 // Accepts select string or a select function like instrument does
+// TODO: Remove select function and only allow ENode
+// TODO: Combine instrument items with identical select functions and
+// disallow duplicate onConnect functions.
 function initializeWhenDOM(sandbox) {
     sandbox._whenDOMCount = {};
 
@@ -134,7 +137,7 @@ function initializeWhenItem(sandbox) {
 
         return {
             then: (callback) => {
-                // Don't add duplicate callbacks (not ready yet. requires major refactor)
+                // Don't add duplicate callbacks (not ready yet. requires refactoring definitions and instrumentation)
                 // const callbackString = callback.toString();
 
                 const newEntry = () => {
@@ -174,18 +177,6 @@ function initializeWhenItem(sandbox) {
 
 function initializeWhenElement(sandbox) {
     return (select) => {
-        // if (typeof select === 'string') {
-        //     const items = sandbox.instrument.items;
-        //     if (items[select]) {
-        //         return {
-        //             then: (callback) => {
-        //                 sandbox
-        //                     .whenItem(select)
-        //                     .then((enode) => callback(enode.el[0]));
-        //             },
-        //         };
-        //     }
-        // }
         return {
             then: (callback) => {
                 sandbox
@@ -196,6 +187,7 @@ function initializeWhenElement(sandbox) {
     };
 }
 
+// Add feature that disables polling and execution on context deactivation
 function initializeWaitUntil(sandbox) {
     sandbox._intervalPoll = {
         queue: [],

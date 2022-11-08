@@ -7,12 +7,14 @@ An Evolv **Environment Integration** to support the renderRule framework.
 The goals for this framework are to provide the following:
 
 1. Group all brittle site selectors in one place. This makes it easy to find the selectors based on customer's DOM that may be volatile.
-2. Handle idemponency.
-3. Easily identify which parts of the page are experimented on. This could support tooling, support, and debugging.
-4. Experiment specific setTimeout and setInterval calls. These are impacted by spa page navigation. Ideally these would be wrapped in APIs that handle navigation automatically.
-5. Simplify coding and support declarative where possible.
-6. Allow simple experiments to remain simple and support more complex tests (model view rendering)
-7. Simplify things like Mutation Observer.
+1. Maintain classes and references for elements to persist through mutations.
+1. An easy way to queue functions to run in response to SPA changes or mutations.
+1. Handle idemponency.
+1. Easily identify which parts of the page are experimented on. This could support tooling, support, and debugging.
+1. Experiment specific setTimeout and setInterval calls that handle SPA navigation automatically.
+1. Simplify coding and support declarative where possible.
+1. Allow simple experiments to remain simple and support more complex tests (model view rendering)
+1. Simplify things like Mutation Observer.
 
 ## Installation
 
@@ -34,9 +36,28 @@ For comprehensive examples see the Examples section at the bottom.
 
 ## renderRule
 
+*deprecated as of 0.6.0, use [catalyst](#catalyst-1) instead*
+
 The core Catalyst object containing essential methods, `$` selectors, as well as the `store` and `app` repositories for assets and functions that can be shared between variants.
 
 Adding a new property to the `renderRule` object creates a new sandbox with all of the properties of the original `renderRule` which allows for multiple experiments to run on the page simultaneously without collisions.
+
+Typically the following will appear at the top the context _and_ each variant so that they all are working within the same sandbox.
+
+```js
+var rule = evolv.renderRule.new_sandbox;
+var store = rule.store;
+var $ = rule.$;
+var $$ = rule.$$;
+```
+
+---
+
+## catalyst
+
+The core Catalyst object containing sandboxes, selectors, instrumentation, mutation observers, as well as the `store` and `app` repositories for assets and functions that can be shared between variants.
+
+Adding a new property to the `catalyst` object creates a new sandbox allowing for multiple experiments to run on the page simultaneously without collisions.
 
 Typically the following will appear at the top the context _and_ each variant so that they all are working within the same sandbox.
 
