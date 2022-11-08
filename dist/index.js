@@ -844,23 +844,25 @@ function initializeWhenItem(sandbox) {
 
         return {
             then: (callback) => {
-                // Don't add duplicate callbacks
+                // Don't add duplicate callbacks (not ready yet. requires major refactor)
+                // const callbackString = callback.toString();
+
                 const newEntry = () => {
                     callback($$(key));
                 };
-                const newEntryString = newEntry.toString();
+                // const newEntryString = newEntry.toString();
                 if (!definition.onConnect) {
                     definition.onConnect = [];
-                } else if (
+                } /* else if (
                     definition.onConnect.findIndex(
-                        (entry) => entry.toString() === newEntryString
+                        (entry) => entry.callbackString === callbackString
                     ) !== -1
                 ) {
                     sandbox.debug(
                         `whenItem: Duplicate callback ${newEntryString}, not assigned to item '${key}'`
                     );
                     return;
-                }
+                } */
 
                 definition.onConnect.push(newEntry);
                 sandbox.instrument.process();
@@ -882,18 +884,18 @@ function initializeWhenItem(sandbox) {
 
 function initializeWhenElement(sandbox) {
     return (select) => {
-        if (typeof select === 'string') {
-            const items = sandbox.instrument.items;
-            if (items[select]) {
-                return {
-                    then: (callback) => {
-                        sandbox
-                            .whenItem(select)
-                            .then((enode) => callback(enode.el[0]));
-                    },
-                };
-            }
-        }
+        // if (typeof select === 'string') {
+        //     const items = sandbox.instrument.items;
+        //     if (items[select]) {
+        //         return {
+        //             then: (callback) => {
+        //                 sandbox
+        //                     .whenItem(select)
+        //                     .then((enode) => callback(enode.el[0]));
+        //             },
+        //         };
+        //     }
+        // }
         return {
             then: (callback) => {
                 sandbox
@@ -1029,7 +1031,7 @@ function initializeSandbox(name) {
     return sandbox;
 }
 
-var version = "0.1.12";
+var version = "0.1.13";
 
 function initializeCatalyst() {
     var catalyst = initializeSandbox('catalyst');
