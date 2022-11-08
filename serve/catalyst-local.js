@@ -229,9 +229,11 @@
     };
     ENode.prototype.prev = function () {
         return new ENode(
-            this.el.map(function (e) {
-                return e.previousElementSibling || [];
-            })
+            this.el
+                .map(function (e) {
+                    return e.previousElementSibling || [];
+                })
+                .filter((e) => e)
         );
     };
 
@@ -517,7 +519,6 @@
             const enode = item.enode;
             const newEnode = definition['select']();
             const className = item.className;
-            // const oldState = item.state;
             const wasConnected = enode.isConnected();
             const isConnected = newEnode.isConnected();
             const hasClass =
@@ -531,11 +532,10 @@
                 hasClass,
             });
 
-            if (wasConnected && isConnected && hasClass) {
-                processItems(definition.children);
-            } else if (
+            if (
                 (!wasConnected && isConnected) ||
-                (isConnected && !hasClass)
+                (isConnected && !hasClass) ||
+                (isConnected && className === null && !enode.isEqualTo(newEnode))
             ) {
                 item.enode = newEnode;
                 if (className) item.enode.addClass(className);
@@ -549,6 +549,8 @@
                 if (definition.onDisconnect)
                     definition.onDisconnect.forEach((func) => func());
                 instrument._didItemChange = true;
+            } else if (wasConnected && isConnected && hasClass) {
+                processItems(definition.children);
             }
         }
 
@@ -883,11 +885,23 @@
 
     function initializeWhenElement(sandbox) {
         return (select) => {
+            if (typeof select === 'string') {
+                const items = sandbox.instrument.items;
+                if (items[select]) {
+                    return {
+                        then: (callback) => {
+                            sandbox
+                                .whenItem(select)
+                                .then((enode) => callback(enode.el[0]));
+                        },
+                    };
+                }
+            }
             return {
-                then: function (func) {
+                then: (callback) => {
                     sandbox
                         .whenDOM(select, { keyPrefix: 'when-element-' })
-                        .then((el) => func(el.firstDom()));
+                        .then((enode) => callback(enode.el[0]));
                 },
             };
         };

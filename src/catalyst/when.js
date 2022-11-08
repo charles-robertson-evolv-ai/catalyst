@@ -135,15 +135,17 @@ function initializeWhenItem(sandbox) {
         return {
             then: (callback) => {
                 // Don't add duplicate callbacks
-                const newEntry = () => {
-                    callback($$(key));
-                };
-                const newEntryString = newEntry.toString();
+                const callbackString = callback.toString();
+
+                // const newEntry = () => {
+                //     callback($$(key));
+                // };
+                // const newEntryString = newEntry.toString();
                 if (!definition.onConnect) {
                     definition.onConnect = [];
                 } else if (
                     definition.onConnect.findIndex(
-                        (entry) => entry.toString() === newEntryString
+                        (entry) => entry.callbackString === callbackString
                     ) !== -1
                 ) {
                     sandbox.debug(
@@ -172,11 +174,23 @@ function initializeWhenItem(sandbox) {
 
 function initializeWhenElement(sandbox) {
     return (select) => {
+        // if (typeof select === 'string') {
+        //     const items = sandbox.instrument.items;
+        //     if (items[select]) {
+        //         return {
+        //             then: (callback) => {
+        //                 sandbox
+        //                     .whenItem(select)
+        //                     .then((enode) => callback(enode.el[0]));
+        //             },
+        //         };
+        //     }
+        // }
         return {
-            then: function (func) {
+            then: (callback) => {
                 sandbox
                     .whenDOM(select, { keyPrefix: 'when-element-' })
-                    .then((el) => func(el.firstDom()));
+                    .then((enode) => callback(enode.el[0]));
             },
         };
     };
