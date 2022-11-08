@@ -25,8 +25,10 @@ function initializeSandbox(name) {
         const item = sandbox.instrument.items[name];
 
         if (!item) {
-            warn(`$$: '${name}' not found in instrument item list`);
-            return undefined;
+            if (!sandbox.instrument.findDefinition(name)) {
+                warn(`$$: '${name}' not found in instrument definitions list`);
+            }
+            return $();
         } else if (!item.enode.isConnected()) {
             // warn(`$$: Item ${name} is not currently on the page.`);
             return $();

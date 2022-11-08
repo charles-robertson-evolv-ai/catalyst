@@ -230,16 +230,20 @@ function initializeWaitUntil(sandbox) {
                         }
                     }
 
-                    if (entry.condition()) {
-                        sandbox.debug(
-                            'waitUntil: condition met:',
-                            entry.condition(),
-                            `${(performance.now() - entry.startTime).toFixed(
-                                2
-                            )}ms`
-                        );
-                        entry.callback();
-                        queue.splice(i, 1);
+                    try {
+                        if (entry.condition()) {
+                            sandbox.debug(
+                                'waitUntil: condition met:',
+                                entry.condition(),
+                                `${(
+                                    performance.now() - entry.startTime
+                                ).toFixed(2)}ms`
+                            );
+                            entry.callback();
+                            queue.splice(i, 1);
+                        }
+                    } catch (error) {
+                        sandbox.warn('waitUntil: error in condition', error);
                     }
                 }
             }, 17);
