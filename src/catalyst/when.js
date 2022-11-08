@@ -134,16 +134,16 @@ function initializeWhenItem(sandbox) {
 
         return {
             then: (callback) => {
-                // Don't add duplicate callbacks
-                const callbackString = callback.toString();
+                // Don't add duplicate callbacks (not ready yet. requires major refactor)
+                // const callbackString = callback.toString();
 
-                // const newEntry = () => {
-                //     callback($$(key));
-                // };
+                const newEntry = () => {
+                    callback($$(key));
+                };
                 // const newEntryString = newEntry.toString();
                 if (!definition.onConnect) {
                     definition.onConnect = [];
-                } else if (
+                } /* else if (
                     definition.onConnect.findIndex(
                         (entry) => entry.callbackString === callbackString
                     ) !== -1
@@ -152,7 +152,7 @@ function initializeWhenItem(sandbox) {
                         `whenItem: Duplicate callback ${newEntryString}, not assigned to item '${key}'`
                     );
                     return;
-                }
+                } */
 
                 definition.onConnect.push(newEntry);
                 sandbox.instrument.process();
