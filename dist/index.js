@@ -712,25 +712,32 @@ function initializeEvolvContext(sandbox) {
 
 function initializeWhenContext(sandbox) {
     return (state) => {
-        sandbox.debug(
-            `whenContext: queue callback for '${state}' state, futurerrent state: '${sandbox._evolvContext.state}'`
-        );
-
         if (state === 'active' || undefined) {
             return {
-                then: (func) => {
-                    sandbox._evolvContext.onActivate.push(func);
+                then: (callback) => {
+                    sandbox.debug(
+                        `whenContext: queue callback`,
+                        callback,
+                        `for 'active' state, current state: '${sandbox._evolvContext.state}'`
+                    );
+                    sandbox._evolvContext.onActivate.push(callback);
                     if (sandbox._evolvContext.state === 'active') {
-                        func();
+                        callback();
                     }
                 },
             };
         } else if (state === 'inactive') {
             return {
-                then: (func) => {
-                    if (func) sandbox._evolvContext.onDeactivate.push(func);
+                then: (callback) => {
+                    sandbox.debug(
+                        `whenContext: queue callback`,
+                        callback,
+                        `for 'inactive' state, current state: '${sandbox._evolvContext.state}'`
+                    );
+                    if (callback)
+                        sandbox._evolvContext.onDeactivate.push(callback);
                     if (sandbox._evolvContext.state === 'inactive') {
-                        func();
+                        callback();
                     }
                 },
             };
@@ -832,8 +839,6 @@ function initializeWhenItem(sandbox) {
     const $$ = sandbox.$$;
 
     return (key, options) => {
-        sandbox.debug('whenItem:', key);
-
         const definition = sandbox.instrument.findDefinition(key);
 
         if (definition === null) {
@@ -847,10 +852,19 @@ function initializeWhenItem(sandbox) {
 
         return {
             then: (callback) => {
+                sandbox.debug(`whenItem: '${key}'`, 'add on connect', {
+                    callback,
+                });
+
                 // Don't add duplicate callbacks (not ready yet. requires refactoring definitions and instrumentation)
                 // const callbackString = callback.toString();
 
                 const newEntry = () => {
+                    sandbox.debug(
+                        `whenItem: '${key}'`,
+                        'fire on connect:',
+                        callback
+                    );
                     callback($$(key));
                 };
                 // const newEntryString = newEntry.toString();
@@ -897,84 +911,38 @@ function initializeWhenElement(sandbox) {
     };
 }
 
-// Add feature that disables polling and execution on context deactivation
+// Add deduping
 function initializeWaitUntil(sandbox) {
     sandbox._intervalPoll = {
         queue: [],
-        isPolling: false,
-        entryId: 0,
-        startPolling: () => {
-            sandbox.debug('waitUntil: start polling');
-            if (sandbox._intervalPoll.isPolling) return;
-            const intervalPoll = sandbox._intervalPoll;
-            intervalPoll.isPolling = true;
-            const queue = intervalPoll.queue;
-            const interval = setInterval(() => {
-                if (queue.length < 1) {
-                    sandbox.debug('waitUntil: queue empty, stop polling');
-                    clearInterval(interval);
-                    return;
-                }
-
-                for (let i = 0; i < queue.length; i++) {
-                    const entry = queue[i];
-
-                    // On first run
-                    if (!entry.startTime) {
-                        entry.id = intervalPoll.entryId++;
-                        entry.startTime = performance.now();
-                        if (entry.timeout) {
-                            sandbox.debug(
-                                `waitUntil: setting timeout for ${entry.timeout}ms`
-                            );
-                            setTimeout(() => {
-                                sandbox.debug(
-                                    'waitUntil: condition timed out',
-                                    entry
-                                );
-                                const futureIndex = queue.findIndex(
-                                    (futureEntry) => futureEntry.id === entry.id
-                                );
-                                queue.splice(futureIndex, 1);
-                            }, entry.timeout);
-                        }
-                    }
-
-                    try {
-                        if (entry.condition()) {
-                            sandbox.debug(
-                                'waitUntil: condition met:',
-                                entry.condition(),
-                                `${(
-                                    performance.now() - entry.startTime
-                                ).toFixed(2)}ms`
-                            );
-                            entry.callback();
-                            queue.splice(i, 1);
-                        }
-                    } catch (error) {
-                        sandbox.warn('waitUntil: error in condition', error);
-                    }
-                }
-            }, 17);
-            sandbox._intervalPoll.isPolling = false;
-        },
     };
+
+    sandbox.whenContext('active').then(() => {
+        if (
+            window.evolv &&
+            window.evolv.catalyst &&
+            window.evolv.catalyst._intervalPoll &&
+            window.evolv.catalyst._intervalPoll.usePolling
+        )
+            window.evolv.catalyst._intervalPoll.startPolling();
+    });
 
     return (condition, timeout) => {
         sandbox.debug(
-            'waitUntil: add callback to queue, condition:',
+            'waitUntil: add callback to interval poll queue, condition:',
             condition
         );
         return {
             then: (callback) => {
-                const queueEntry = {
+                const entry = {
                     condition: condition,
                     callback: () => callback(condition()),
+                    timeout: timeout || null,
+                    startTime: performance.now(),
                 };
-                if (timeout) queueEntry.timeout = timeout;
-                sandbox._intervalPoll.queue.push(queueEntry);
-                sandbox._intervalPoll.startPolling();
+                sandbox._intervalPoll.queue.push(entry);
+                window.evolv.catalyst._intervalPoll.usePolling = true;
+                window.evolv.catalyst._intervalPoll.startPolling();
             },
         };
     };
@@ -1029,6 +997,84 @@ function initializeSandbox(name) {
     return sandbox;
 }
 
+function initializeIntervalPoll(catalyst) {
+    function processQueue(sandbox) {
+        const queue = sandbox._intervalPoll.queue;
+
+        for (let i = 0; i < queue.length; i++) {
+            const entry = queue[i];
+            let timeElapsed = performance.now() - entry.startTime;
+
+            if (entry.timeout && entry.timeout < timeElapsed) {
+                sandbox.debug('waitUntil: condition timed out', entry);
+                queue.splice(i, 1);
+                continue;
+            }
+
+            try {
+                if (entry.condition()) {
+                    sandbox.debug(
+                        'waitUntil: condition met:',
+                        entry.condition,
+                        entry.condition(),
+                        `${(performance.now() - entry.startTime).toFixed(2)}ms`
+                    );
+                    entry.callback();
+                    queue.splice(i, 1);
+                }
+            } catch (error) {
+                // Prevents 60 error messages per second if the condition contains an error
+                sandbox.warn(
+                    'waitUntil: error in condition, removing from queue',
+                    error
+                );
+                queue.splice(i, 1);
+            }
+        }
+
+        return queue.length;
+    }
+
+    function processQueues() {
+        return new Promise((resolve) => {
+            const processQueuesLoop = () => {
+                let anySandboxActive = false;
+                let queueTotal = 0;
+
+                for (const sandbox of catalyst.sandboxes) {
+                    if (sandbox._evolvContext.state === 'inactive') continue;
+                    anySandboxActive = true;
+                    queueTotal += processQueue(sandbox);
+                }
+
+                if (!anySandboxActive) {
+                    catalyst.debug('interval poll: no active sandboxes');
+                    resolve(false);
+                } else if (queueTotal === 0) {
+                    catalyst.debug('interval poll: all queues empty');
+                    resolve(false);
+                } else {
+                    requestAnimationFrame(processQueuesLoop);
+                }
+            };
+            processQueuesLoop();
+        });
+    }
+
+    return {
+        isPolling: false,
+        usePolling: false,
+        startPolling: async function () {
+            const intervalPoll = catalyst._intervalPoll;
+            if (intervalPoll.isPolling) return;
+            catalyst.debug('interval poll: start polling');
+            intervalPoll.isPolling = true;
+            intervalPoll.isPolling = await processQueues();
+            catalyst.debug('interval poll: stop polling');
+        },
+    };
+}
+
 var version = "0.1.13";
 
 function initializeCatalyst() {
@@ -1081,6 +1127,8 @@ function initializeCatalyst() {
 
         return sandbox;
     };
+
+    catalyst._intervalPoll = initializeIntervalPoll(catalyst);
 
     // SPA mutation observer for all sandboxes
     debug('init evolv context observer: watching html');

@@ -846,9 +846,8 @@ function makeLine(line) {
 }
 
 function editDevices() {
-    $$('device-item')
-        .markOnce('evolv')
-        .each((device) => {
+    rule.whenItem('device-item').then((devices) => {
+        devices.markOnce('evolv').each((device) => {
             editProduct(device);
 
             const a = device.find('a');
@@ -968,6 +967,7 @@ function editDevices() {
                 learn.addClass('evolv-display-none');
             }
         });
+    });
 }
 
 // Accessories
@@ -1012,13 +1012,8 @@ function editAccessories() {
 }
 
 function editProducts() {
-    rule.whenItem('product-list').then((deviceList) => {
-        editDevices();
-    });
-
-    rule.whenItem('accessory-list').then((accessoryList) => {
-        editAccessories();
-    });
+    editDevices();
+    editAccessories();
 
     rule.whenItem('product-list-wrap').then((productListWrap) => {
         productListWrap.watch().then(() => {
@@ -2052,6 +2047,7 @@ function makeFooter() {
 }
 
 function start() {
+    rule.debug('START');
     editHeading();
     makeButtonBar();
     editProducts();

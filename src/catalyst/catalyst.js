@@ -1,4 +1,5 @@
-import { initializeSandbox } from './sandbox.js';
+import { initializeSandbox } from './sandbox';
+import { initializeIntervalPoll } from './interval-poll';
 import { version } from '../../package.json';
 
 export function initializeCatalyst() {
@@ -51,6 +52,8 @@ export function initializeCatalyst() {
 
         return sandbox;
     };
+
+    catalyst._intervalPoll = initializeIntervalPoll(catalyst);
 
     // SPA mutation observer for all sandboxes
     debug('init evolv context observer: watching html');
