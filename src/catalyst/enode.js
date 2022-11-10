@@ -237,30 +237,20 @@ ENode.prototype.afterMe = function (item) {
 };
 ENode.prototype.insertBefore = function (item) {
     var node = this.el[0];
-    if (!node) {
-        console.info('no content for insert');
-        return this;
-    }
-    if (typeof item === 'string') {
-        item = document.querySelectorAll(item);
-    } else if (item.constructor === ENode) {
-        item = item.el[0];
-    }
-    item.parentNode.insertBefore(node, item);
+    if (!node) return this;
+    if (typeof item === 'string') item = document.querySelectorAll(item);
+    else if (item.constructor === ENode) item = item.el[0];
+    if (!item) return this;
+    item.insertAdjacentElement('beforebegin', node);
     return this;
 };
 ENode.prototype.insertAfter = function (item) {
     var node = this.el[0];
-    if (!node) {
-        console.info('no content for insert');
-        return this;
-    }
-    if (typeof item === 'string') {
-        item = document.querySelectorAll(item);
-    } else if (item.constructor === ENode) {
-        item = item.el[0];
-    }
-    item.parentNode.insertBefore(node, item.nextSibling);
+    if (!node) return this;
+    if (typeof item === 'string') item = document.querySelectorAll(item);
+    else if (item.constructor === ENode) item = item.el[0];
+    if (!item) return this;
+    item.insertAdjacentElement('afterend', node);
     return this;
 };
 ENode.prototype.wrap = function (item) {
