@@ -1,3 +1,4 @@
+import { version } from '../../package.json';
 import { initializeLogs } from './logs';
 import { $, select, selectAll } from './enode';
 import { initializeInstrument } from './instrument';
@@ -18,7 +19,16 @@ function initializeSandbox(name) {
     initializeLogs(sandbox);
     const debug = sandbox.debug;
     const warn = sandbox.warn;
-    if (name !== 'catalyst') sandbox.debug(`init context: ${name}`);
+    if (name === 'catalyst') {
+        debug(`init catalyst version ${version}`);
+        sandbox.version = version;
+    } else {
+        debug(`init context: ${name}`);
+        debug(
+            'SPA:',
+            Array.from(document.documentElement.classList).join(', ')
+        );
+    }
 
     sandbox.$ = $;
     sandbox.$$ = (name) => {

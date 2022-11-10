@@ -11,6 +11,24 @@ var $ = rule.$;
 var $$ = rule.$$;
 var store = rule.store;
 
+rule.perf = performance.now();
+rule.waitUntil(
+    () =>
+        window.evolv &&
+        window.evolv.client &&
+        window.evolv.client.context &&
+        window.evolv.client.context.remoteContext &&
+        window.evolv.client.context.remoteContext.keys &&
+        window.evolv.client.context.remoteContext.keys.active &&
+        window.evolv.client.context.remoteContext.keys.active.length > 0
+).then(() =>
+    rule.log(
+        'client context remoteContext keys:',
+        window.evolv.client.context.remoteContext.keys,
+        `${(performance.now() - rule.perf).toFixed(2)}ms`
+    )
+);
+
 function extendRule(rule) {
     var ENode = rule.$().constructor;
 
@@ -1259,8 +1277,13 @@ function addSlide(slide, promoSection, observer) {
     promoSection.attr({ 'evolv-slide-count': slideCount });
 
     // If .promo-section does not exist on the page create it
-    if (promoSection.firstDom().parentElement.parentElement === null) {
-        promoSection.insertBefore($$('payment-info'));
+    if (!promoSection.isConnected()) {
+        rule.whenItem('payment-info').then((paymentInfo) => {
+            paymentInfo.markOnce('evolv-promo-section').each((paymentInfo) => {
+                paymentInfo.beforeMe(promoSection);
+                rule.log('PROMOSECTION:', promoSection, $$('payment-info'));
+            });
+        });
     }
 }
 

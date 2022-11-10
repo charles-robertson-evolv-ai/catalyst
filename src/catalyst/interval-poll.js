@@ -43,15 +43,15 @@ function initializeIntervalPoll(catalyst) {
                 let queueTotal = 0;
 
                 for (const sandbox of catalyst.sandboxes) {
-                    if (sandbox._evolvContext.state === 'inactive') continue;
+                    // if (sandbox._evolvContext.state === 'inactive') continue;
                     anySandboxActive = true;
                     queueTotal += processQueue(sandbox);
                 }
 
-                if (!anySandboxActive) {
+                /*if (!anySandboxActive) {
                     catalyst.debug('interval poll: no active sandboxes');
                     resolve(false);
-                } else if (queueTotal === 0) {
+                } else */ if (queueTotal === 0) {
                     catalyst.debug('interval poll: all queues empty');
                     resolve(false);
                 } else {

@@ -26,9 +26,19 @@ function initializeEvolvContext(sandbox) {
 
         return evolvContext.state;
     };
-    evolvContext.state = evolvContext.updateState();
-    evolvContext.onActivate = [() => debug('evolv context: activate')];
-    evolvContext.onDeactivate = [() => debug('evolv context: deactivate')];
+
+    evolvContext.updateState();
+    evolvContext.onActivate = [
+        () =>
+            debug(
+                `evolv context: ${sandbox.name} activate, ${(
+                    performance.now() - sandbox.perf
+                ).toFixed(2)}ms`
+            ),
+    ];
+    evolvContext.onDeactivate = [
+        () => debug(`evolv context: ${sandbox.name} deactivate`),
+    ];
 
     // Backward compatibility
     sandbox.track = function (txt) {

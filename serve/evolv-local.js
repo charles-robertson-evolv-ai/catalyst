@@ -1,6 +1,8 @@
 (function () {
     'use strict';
 
+    var version = "0.1.15";
+
     const environmentLogDefaults = {
         // VCG
         b02d16aa80: 'silent', // Prod
@@ -294,30 +296,20 @@
     };
     ENode.prototype.insertBefore = function (item) {
         var node = this.el[0];
-        if (!node) {
-            console.info('no content for insert');
-            return this;
-        }
-        if (typeof item === 'string') {
-            item = document.querySelectorAll(item);
-        } else if (item.constructor === ENode) {
-            item = item.el[0];
-        }
-        item.parentNode.insertBefore(node, item);
+        if (!node) return this;
+        if (typeof item === 'string') item = document.querySelectorAll(item);
+        else if (item.constructor === ENode) item = item.el[0];
+        if (!item) return this;
+        item.insertAdjacentElement('beforebegin', node);
         return this;
     };
     ENode.prototype.insertAfter = function (item) {
         var node = this.el[0];
-        if (!node) {
-            console.info('no content for insert');
-            return this;
-        }
-        if (typeof item === 'string') {
-            item = document.querySelectorAll(item);
-        } else if (item.constructor === ENode) {
-            item = item.el[0];
-        }
-        item.parentNode.insertBefore(node, item.nextSibling);
+        if (!node) return this;
+        if (typeof item === 'string') item = document.querySelectorAll(item);
+        else if (item.constructor === ENode) item = item.el[0];
+        if (!item) return this;
+        item.insertAdjacentElement('afterend', node);
         return this;
     };
     ENode.prototype.wrap = function (item) {
@@ -698,9 +690,19 @@
 
             return evolvContext.state;
         };
-        evolvContext.state = evolvContext.updateState();
-        evolvContext.onActivate = [() => debug('evolv context: activate')];
-        evolvContext.onDeactivate = [() => debug('evolv context: deactivate')];
+
+        evolvContext.updateState();
+        evolvContext.onActivate = [
+            () =>
+                debug(
+                    `evolv context: ${sandbox.name} activate, ${(
+                    performance.now() - sandbox.perf
+                ).toFixed(2)}ms`
+                ),
+        ];
+        evolvContext.onDeactivate = [
+            () => debug(`evolv context: ${sandbox.name} deactivate`),
+        ];
 
         // Backward compatibility
         sandbox.track = function (txt) {
@@ -956,9 +958,18 @@
         sandbox.name = name;
 
         initializeLogs(sandbox);
-        sandbox.debug;
+        const debug = sandbox.debug;
         const warn = sandbox.warn;
-        if (name !== 'catalyst') sandbox.debug(`init context: ${name}`);
+        if (name === 'catalyst') {
+            debug(`init catalyst version ${version}`);
+            sandbox.version = version;
+        } else {
+            debug(`init context: ${name}`);
+            debug(
+                'SPA:',
+                Array.from(document.documentElement.classList).join(', ')
+            );
+        }
 
         sandbox.$ = $$1;
         sandbox.$$ = (name) => {
@@ -1041,19 +1052,16 @@
         function processQueues() {
             return new Promise((resolve) => {
                 const processQueuesLoop = () => {
-                    let anySandboxActive = false;
                     let queueTotal = 0;
 
                     for (const sandbox of catalyst.sandboxes) {
-                        if (sandbox._evolvContext.state === 'inactive') continue;
-                        anySandboxActive = true;
                         queueTotal += processQueue(sandbox);
                     }
 
-                    if (!anySandboxActive) {
+                    /*if (!anySandboxActive) {
                         catalyst.debug('interval poll: no active sandboxes');
                         resolve(false);
-                    } else if (queueTotal === 0) {
+                    } else */ if (queueTotal === 0) {
                         catalyst.debug('interval poll: all queues empty');
                         resolve(false);
                     } else {
@@ -1078,13 +1086,11 @@
         };
     }
 
-    var version = "0.1.13";
-
     function initializeCatalyst() {
-        var catalyst = initializeSandbox('catalyst');
-        catalyst.version = version;
-        catalyst.sandboxes = [];
+        const catalyst = initializeSandbox('catalyst');
         const debug = catalyst.debug;
+
+        catalyst.sandboxes = [];
 
         // Creates proxy for window.evolv.catalyst that adds a new sandbox whenever
         // a new property is accessed.
@@ -1119,12 +1125,12 @@
         catalyst.initVariant = (context, variant) => {
             const sandbox = window.evolv.catalyst[context];
             sandbox.whenContext('active').then(() => {
-                sandbox.debug('variant active:', variant);
+                debug('variant active:', variant);
                 document.body.classList.add(`evolv-${variant}`);
             });
 
             sandbox.whenContext('inactive').then(() => {
-                sandbox.debug('variant inactive:', variant);
+                debug('variant inactive:', variant);
                 document.body.classList.remove(`evolv-${variant}`);
             });
 
@@ -1136,6 +1142,10 @@
         // SPA mutation observer for all sandboxes
         debug('init evolv context observer: watching html');
         new MutationObserver(() => {
+            catalyst.log(
+                'SPA:',
+                Array.from(document.documentElement.classList).join(', ')
+            );
             catalyst.sandboxes.forEach((sandbox) => {
                 const oldState = sandbox._evolvContext.state;
                 const newState = sandbox._evolvContext.updateState();
@@ -1201,6 +1211,24 @@
     var $ = rule.$;
     var $$ = rule.$$;
     var store = rule.store;
+
+    rule.perf = performance.now();
+    rule.waitUntil(
+        () =>
+            window.evolv &&
+            window.evolv.client &&
+            window.evolv.client.context &&
+            window.evolv.client.context.remoteContext &&
+            window.evolv.client.context.remoteContext.keys &&
+            window.evolv.client.context.remoteContext.keys.active &&
+            window.evolv.client.context.remoteContext.keys.active.length > 0
+    ).then(() =>
+        rule.log(
+            'client context remoteContext keys:',
+            window.evolv.client.context.remoteContext.keys,
+            `${(performance.now() - rule.perf).toFixed(2)}ms`
+        )
+    );
 
     function extendRule(rule) {
         var ENode = rule.$().constructor;
@@ -2450,8 +2478,13 @@
         promoSection.attr({ 'evolv-slide-count': slideCount });
 
         // If .promo-section does not exist on the page create it
-        if (promoSection.firstDom().parentElement.parentElement === null) {
-            promoSection.insertBefore($$('payment-info'));
+        if (!promoSection.isConnected()) {
+            rule.whenItem('payment-info').then((paymentInfo) => {
+                paymentInfo.markOnce('evolv-promo-section').each((paymentInfo) => {
+                    paymentInfo.beforeMe(promoSection);
+                    rule.log('PROMOSECTION:', promoSection, $$('payment-info'));
+                });
+            });
         }
     }
 

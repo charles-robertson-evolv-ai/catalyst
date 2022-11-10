@@ -1,12 +1,11 @@
 import { initializeSandbox } from './sandbox';
 import { initializeIntervalPoll } from './interval-poll';
-import { version } from '../../package.json';
 
 export function initializeCatalyst() {
-    var catalyst = initializeSandbox('catalyst');
-    catalyst.version = version;
-    catalyst.sandboxes = [];
+    const catalyst = initializeSandbox('catalyst');
     const debug = catalyst.debug;
+
+    catalyst.sandboxes = [];
 
     // Creates proxy for window.evolv.catalyst that adds a new sandbox whenever
     // a new property is accessed.
@@ -41,12 +40,12 @@ export function initializeCatalyst() {
     catalyst.initVariant = (context, variant) => {
         const sandbox = window.evolv.catalyst[context];
         sandbox.whenContext('active').then(() => {
-            sandbox.debug('variant active:', variant);
+            debug('variant active:', variant);
             document.body.classList.add(`evolv-${variant}`);
         });
 
         sandbox.whenContext('inactive').then(() => {
-            sandbox.debug('variant inactive:', variant);
+            debug('variant inactive:', variant);
             document.body.classList.remove(`evolv-${variant}`);
         });
 
@@ -58,6 +57,10 @@ export function initializeCatalyst() {
     // SPA mutation observer for all sandboxes
     debug('init evolv context observer: watching html');
     new MutationObserver(() => {
+        catalyst.log(
+            'SPA:',
+            Array.from(document.documentElement.classList).join(', ')
+        );
         catalyst.sandboxes.forEach((sandbox) => {
             const oldState = sandbox._evolvContext.state;
             const newState = sandbox._evolvContext.updateState();
