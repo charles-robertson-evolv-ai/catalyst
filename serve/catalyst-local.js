@@ -478,19 +478,45 @@
         const warn = sandbox.warn;
         const instrument = {};
         instrument.definitions = {};
-        instrument.items = {};
+        instrument.queue = {};
         instrument._isProcessing = false;
         instrument._processCount = 0;
         instrument._onInstrument = [];
         instrument._didItemChange = false;
 
-        function processItems(items, definitions) {
+        function processQueueLoop(items, definitions) {
             for (const key in definitions) {
-                processItem(key, items, definitions);
+                processQueueItem(key, items, definitions);
             }
         }
 
-        function processItem(key, items, definitions) {
+        instrument.processQueue = (items, definitions) => {
+            if (instrument._isProcessing) return;
+            // if (sandbox._evolvContext.state === 'inactive') return;
+
+            instrument._isProcessing = true;
+            instrument._processCount++;
+            instrument._didItemChange = false;
+            let then = performance.now();
+
+            processQueueLoop(items, definitions);
+
+            debug(
+                'process instrument: complete',
+                (performance.now() - then).toFixed(2),
+                instrument._processCount
+            );
+
+            instrument._isProcessing = false;
+
+            // Covers scenario where mutations are missed during long process
+            if (instrument._didItemChange) {
+                debug('process instrument: item changed, reprocessing');
+                instrument.debouncedProcessQueue();
+            }
+        };
+
+        function processQueueItem(key, items, definitions) {
             const definition = definitions[key];
 
             if (items[key] === undefined) {
@@ -542,34 +568,12 @@
                     definition.onDisconnect.forEach((func) => func());
                 instrument._didItemChange = true;
             } else if (wasConnected && isConnected && hasClass) {
-                processItems(definition.children);
+                processQueueLoop(definition.children);
             }
         }
 
-        instrument.process = debounce(() => {
-            if (instrument._isProcessing) return;
-            if (sandbox._evolvContext.state === 'inactive') return;
-
-            instrument._isProcessing = true;
-            instrument._processCount++;
-            instrument._didItemChange = false;
-            let then = performance.now();
-
-            processItems(instrument.items, instrument.definitions);
-
-            debug(
-                'process instrument: complete',
-                (performance.now() - then).toFixed(2),
-                instrument._processCount
-            );
-
-            instrument._isProcessing = false;
-
-            // Covers scenario where mutations are missed during long process
-            if (instrument._didItemChange) {
-                debug('process instrument: item changed, reprocessing');
-                instrument.process();
-            }
+        instrument.debouncedProcessQueue = debounce(() => {
+            instrument.processQueue(instrument.queue, instrument.definitions);
         });
 
         instrument.add = (key, select, options) => {
@@ -625,7 +629,7 @@
                 addItem(key, select, options);
             }
 
-            instrument.process();
+            instrument.debouncedProcessQueue();
         };
 
         instrument.findDefinition = (searchKey) => {
@@ -666,43 +670,6 @@
 
     function initializeEvolvContext(sandbox) {
         const debug = sandbox.debug;
-        sandbox._evolvContext = {};
-        const evolvContext = sandbox._evolvContext;
-
-        evolvContext.updateState = () => {
-            // Defaults the Evolv context state to active so you can run an experiment
-            // even without the benefit of SPA handling.
-            if (!sandbox.id && !sandbox.isActive) {
-                evolvContext.state = 'active';
-                return 'active';
-            }
-
-            if (sandbox.id) {
-                evolvContext.state = document.documentElement.classList.contains(
-                    'evolv_web_' + sandbox.id
-                )
-                    ? 'active'
-                    : 'inactive';
-            } else if (sandbox.isActive) {
-                // Deprecated
-                evolvContext.state = sandbox.isActive() ? 'active' : 'inactive';
-            }
-
-            return evolvContext.state;
-        };
-
-        evolvContext.updateState();
-        evolvContext.onActivate = [
-            () =>
-                debug(
-                    `evolv context: ${sandbox.name} activate, ${(
-                    performance.now() - sandbox.perf
-                ).toFixed(2)}ms`
-                ),
-        ];
-        evolvContext.onDeactivate = [
-            () => debug(`evolv context: ${sandbox.name} deactivate`),
-        ];
 
         // Backward compatibility
         sandbox.track = function (txt) {
@@ -713,49 +680,110 @@
             node.attr({ [trackKey]: tracking });
             return this;
         };
-    }
 
-    function initializeWhenContext(sandbox) {
-        return (state) => {
-            if (state === 'active' || undefined) {
-                return {
-                    then: (callback) => {
-                        sandbox.debug(
-                            `whenContext: queue callback`,
-                            callback,
-                            `for 'active' state, current state: '${sandbox._evolvContext.state}'`
-                        );
-                        sandbox._evolvContext.onActivate.push(callback);
-                        if (sandbox._evolvContext.state === 'active') {
-                            callback();
-                        }
-                    },
-                };
-            } else if (state === 'inactive') {
-                return {
-                    then: (callback) => {
-                        sandbox.debug(
-                            `whenContext: queue callback`,
-                            callback,
-                            `for 'inactive' state, current state: '${sandbox._evolvContext.state}'`
-                        );
-                        if (callback)
-                            sandbox._evolvContext.onDeactivate.push(callback);
-                        if (sandbox._evolvContext.state === 'inactive') {
-                            callback();
-                        }
-                    },
-                };
-            } else {
-                return {
-                    then: () => {
-                        warn(
-                            `whenContext: unknown state, requires 'active' or 'inactive', default is 'active'`
-                        );
-                    },
-                };
-            }
+        return {
+            state: { current: 'active', previous: 'active' },
+            onActivate: [
+                () => debug(`activate context: ${sandbox.name}`),
+                window.evolv.catalyst._globalObserver.connect,
+                window.evolv.catalyst._intervalPoll.startPolling,
+            ],
+            onDeactivate: [() => debug(`deactivate context: ${sandbox.name}`)],
+            initializeActiveKeyListener: (contextId) => {
+                debug('init active key listener: waiting for window.evolv.client');
+                sandbox
+                    .waitUntil(
+                        () =>
+                            window.evolv &&
+                            window.evolv.client &&
+                            window.evolv.client.getActiveKeys
+                    )
+                    .then(() => {
+                        window.evolv.client
+                            .getActiveKeys('web.' + contextId)
+                            .listen((keys) => {
+                                debug('active key listener:', keys);
+                                // if (keys)
+                            });
+                    });
+            },
+            initializeIsActiveListener: (isActive) => {
+                sandbox
+                    .waitUntil(
+                        () =>
+                            window.evolv &&
+                            window.evolv.client &&
+                            window.evolv.client.getActiveKeys
+                    )
+                    .then(() => {
+                        window.evolv.client.getActiveKeys().listen((keys) => {
+                            sandbox._evolvContext.state.previous =
+                                sandbox._evolvContext.state.current;
+                            sandbox._evolvContext.state.current = isActive()
+                                ? 'active'
+                                : 'inactive';
+                            const current = sandbox._evolvContext.state.current;
+                            const previous = sandbox._evolvContext.state.previous;
+
+                            if (previous === 'inactive' && current === 'active') {
+                                debug('active key listener: activate');
+                                sandbox._evolvContext.onActivate.forEach(
+                                    (callback) => callback()
+                                );
+                            } else if (
+                                previous === 'active' &&
+                                current === 'inactive'
+                            ) {
+                                debug('active key listener: deactivate');
+                                sandbox._evolvContext.onDeactivate.forEach(
+                                    (callback) => callback()
+                                );
+                            } else {
+                                debug(
+                                    `active key listener: no change, current state '${current}'`
+                                );
+                            }
+                        });
+                    });
+            },
         };
+        // sandbox._evolvContext = {};
+        // const evolvContext = sandbox._evolvContext;
+
+        // evolvContext.updateState = () => {
+        //     // Defaults the Evolv context state to active so you can run an experiment
+        //     // even without the benefit of SPA handling.
+        //     if (!sandbox.id && !sandbox.isActive) {
+        //         evolvContext.state = 'active';
+        //         return 'active';
+        //     }
+
+        //     if (sandbox.id) {
+        //         evolvContext.state = document.documentElement.classList.contains(
+        //             'evolv_web_' + sandbox.id
+        //         )
+        //             ? 'active'
+        //             : 'inactive';
+        //     } else if (sandbox.isActive) {
+        //         // Deprecated
+        //         evolvContext.state = sandbox.isActive() ? 'active' : 'inactive';
+        //     }
+
+        //     return evolvContext.state;
+        // };
+
+        // evolvContext.updateState();
+        // evolvContext.onActivate = [
+        //     () =>
+        //         debug(
+        //             `evolv context: ${sandbox.name} activate, ${(
+        //                 performance.now() - sandbox.perf
+        //             ).toFixed(2)}ms`
+        //         ),
+        // ];
+        // evolvContext.onDeactivate = [
+        //     () => debug(`evolv context: ${sandbox.name} deactivate`),
+        // ];
     }
 
     function initializeWhenInstrument(sandbox) {
@@ -816,7 +844,7 @@
                         ],
                         asClass: null,
                     };
-                    sandbox.instrument.process();
+                    sandbox.instrument.debouncedProcessQueue();
                 },
                 // Deprecated
                 thenInBulk: (callback) => {
@@ -832,7 +860,7 @@
                         ],
                         asClass: null,
                     };
-                    sandbox.instrument.process();
+                    sandbox.instrument.debouncedProcessQueue();
                 },
                 // Deprecated
                 reactivateOnChange: () => {},
@@ -887,7 +915,7 @@
                     } */
 
                     definition.onConnect.push(newEntry);
-                    sandbox.instrument.process();
+                    sandbox.instrument.debouncedProcessQueue();
                 },
                 // Deprecated
                 thenInBulk: (callback) => {
@@ -896,7 +924,7 @@
                             callback($$(key));
                         },
                     ];
-                    sandbox.instrument.process();
+                    sandbox.instrument.debouncedProcessQueue();
                 },
                 // Deprecated
                 reactivateOnChange: function () {},
@@ -922,15 +950,15 @@
             queue: [],
         };
 
-        sandbox.whenContext('active').then(() => {
-            if (
-                window.evolv &&
-                window.evolv.catalyst &&
-                window.evolv.catalyst._intervalPoll &&
-                window.evolv.catalyst._intervalPoll.usePolling
-            )
-                window.evolv.catalyst._intervalPoll.startPolling();
-        });
+        // sandbox.whenContext('active').then(() => {
+        //     if (
+        //         window.evolv &&
+        //         window.evolv.catalyst &&
+        //         window.evolv.catalyst._intervalPoll &&
+        //         window.evolv.catalyst._intervalPoll.usePolling
+        //     )
+        //         window.evolv.catalyst._intervalPoll.startPolling();
+        // });
 
         return (condition, timeout) => {
             sandbox.debug(
@@ -964,16 +992,12 @@
             debug(`init catalyst version ${version}`);
             sandbox.version = version;
         } else {
-            debug(`init context: ${name}`);
-            debug(
-                'SPA:',
-                Array.from(document.documentElement.classList).join(', ')
-            );
+            debug(`init context sandbox: ${name}`);
         }
 
         sandbox.$ = $;
         sandbox.$$ = (name) => {
-            const item = sandbox.instrument.items[name];
+            const item = sandbox.instrument.queue[name];
 
             if (!item) {
                 if (!sandbox.instrument.findDefinition(name)) {
@@ -996,9 +1020,10 @@
         sandbox.app = {};
 
         initializeInstrument(sandbox);
-        initializeEvolvContext(sandbox);
+        if (sandbox.name !== 'catalyst')
+            sandbox._evolvContext = initializeEvolvContext(sandbox);
 
-        sandbox.whenContext = initializeWhenContext(sandbox);
+        // sandbox.whenContext = initializeWhenContext(sandbox);
         sandbox.whenInstrument = initializeWhenInstrument(sandbox);
         sandbox.whenDOM = initializeWhenDOM(sandbox);
         sandbox.whenItem = initializeWhenItem(sandbox);
@@ -1006,7 +1031,7 @@
         sandbox.waitUntil = initializeWaitUntil(sandbox);
 
         // Backwards compatibility
-        sandbox.reactivate = sandbox.instrument.process;
+        sandbox.reactivate = sandbox.instrument.debouncedProcessQueue;
 
         return sandbox;
     }
@@ -1052,16 +1077,20 @@
         function processQueues() {
             return new Promise((resolve) => {
                 const processQueuesLoop = () => {
+                    let anySandboxActive = false;
                     let queueTotal = 0;
 
                     for (const sandbox of catalyst.sandboxes) {
+                        if (sandbox._evolvContext.state.current === 'inactive')
+                            continue;
+                        anySandboxActive = true;
                         queueTotal += processQueue(sandbox);
                     }
 
-                    /*if (!anySandboxActive) {
+                    if (!anySandboxActive) {
                         catalyst.debug('interval poll: no active sandboxes');
                         resolve(false);
-                    } else */ if (queueTotal === 0) {
+                    } else if (queueTotal === 0) {
                         catalyst.debug('interval poll: all queues empty');
                         resolve(false);
                     } else {
@@ -1106,8 +1135,14 @@
                         set(target, property, value) {
                             target[property] = value;
 
-                            if (property === 'id' || property === 'isActive') {
-                                sandbox._evolvContext.updateState();
+                            if (property === 'key') {
+                                sandbox._evolvContext.initializeActiveKeyListener(
+                                    value
+                                );
+                            } else if (property === 'isActive') {
+                                sandbox._evolvContext.initializeIsActiveListener(
+                                    value
+                                );
                             }
 
                             return true;
@@ -1122,58 +1157,76 @@
             },
         });
 
-        catalyst.initVariant = (context, variant) => {
-            const sandbox = window.evolv.catalyst[context];
-            sandbox.whenContext('active').then(() => {
-                debug('variant active:', variant);
-                document.body.classList.add(`evolv-${variant}`);
-            });
+        // catalyst.initVariant = (context, variant) => {
+        //     const sandbox = window.evolv.catalyst[context];
+        //     sandbox.whenContext('active').then(() => {
+        //         debug('variant active:', variant);
+        //         document.body.classList.add(`evolv-${variant}`);
+        //     });
 
-            sandbox.whenContext('inactive').then(() => {
-                debug('variant inactive:', variant);
-                document.body.classList.remove(`evolv-${variant}`);
-            });
+        //     sandbox.whenContext('inactive').then(() => {
+        //         debug('variant inactive:', variant);
+        //         document.body.classList.remove(`evolv-${variant}`);
+        //     });
 
-            return sandbox;
-        };
+        //     return sandbox;
+        // };
 
         catalyst._intervalPoll = initializeIntervalPoll(catalyst);
 
         // SPA mutation observer for all sandboxes
-        debug('init evolv context observer: watching html');
-        new MutationObserver(() => {
-            catalyst.log(
-                'SPA:',
-                Array.from(document.documentElement.classList).join(', ')
-            );
-            catalyst.sandboxes.forEach((sandbox) => {
-                const oldState = sandbox._evolvContext.state;
-                const newState = sandbox._evolvContext.updateState();
-                if (
-                    (oldState === 'inactive' || oldState === undefined) &&
-                    newState === 'active'
-                ) {
-                    sandbox._evolvContext.onActivate.forEach((func) => func());
-                } else if (oldState === 'active' && newState === 'inactive') {
-                    sandbox._evolvContext.onDeactivate.forEach((func) => func());
-                }
-            });
-        }).observe(document.documentElement, {
-            attributes: true,
-            attributeFilter: ['class'],
-        });
+        // debug('init evolv context observer: watching html');
+        // new MutationObserver(() => {
+        //     catalyst.log(
+        //         'SPA:',
+        //         Array.from(document.documentElement.classList).join(', ')
+        //     );
+        //     catalyst.sandboxes.forEach((sandbox) => {
+        //         const oldState = sandbox._evolvContext.state;
+        //         const newState = sandbox._evolvContext.updateState();
+        //         if (
+        //             (oldState === 'inactive' || oldState === undefined) &&
+        //             newState === 'active'
+        //         ) {
+        //             sandbox._evolvContext.onActivate.forEach((func) => func());
+        //         } else if (oldState === 'active' && newState === 'inactive') {
+        //             sandbox._evolvContext.onDeactivate.forEach((func) => func());
+        //         }
+        //     });
+        // }).observe(document.documentElement, {
+        //     attributes: true,
+        //     attributeFilter: ['class'],
+        // });
 
         // The main mutation observer for all sandboxes
-        debug('init main observer: watching body');
-        new MutationObserver(() => {
-            catalyst.sandboxes.forEach((sandbox) => {
-                sandbox.instrument.process();
-            });
-        }).observe(document.body, {
-            childList: true,
-            attributes: true,
-            subtree: true,
-        });
+        debug('init global observer');
+        catalyst._globalObserver = {
+            observer: new MutationObserver(() => {
+                let anySandboxActive = false;
+                for (const sandbox of catalyst.sandboxes) {
+                    if (sandbox._evolvContext.state.current === 'inactive')
+                        continue;
+                    anySandboxActive = true;
+                    sandbox.instrument.debouncedProcessQueue();
+                }
+
+                if (!anySandboxActive) catalyst._globalObserver.disconnect();
+            }),
+            connect: () => {
+                debug('global observer: observe');
+                catalyst._globalObserver.observer.observe(document.body, {
+                    childList: true,
+                    attributes: true,
+                    subtree: true,
+                });
+            },
+            disconnect: () => {
+                debug('global observer: disconnect');
+                catalyst._globalObserver.observer.disconnect();
+            },
+        };
+
+        catalyst._globalObserver.connect();
 
         return catalystProxy;
     }

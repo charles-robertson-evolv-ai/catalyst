@@ -6,28 +6,12 @@ processConfig();
 // ------- Context
 
 var rule = window.evolv.renderRule.xhs;
-
+// rule.id = 'fg70f47y0';
 var $ = rule.$;
 var $$ = rule.$$;
 var store = rule.store;
 
 rule.perf = performance.now();
-rule.waitUntil(
-    () =>
-        window.evolv &&
-        window.evolv.client &&
-        window.evolv.client.context &&
-        window.evolv.client.context.remoteContext &&
-        window.evolv.client.context.remoteContext.keys &&
-        window.evolv.client.context.remoteContext.keys.active &&
-        window.evolv.client.context.remoteContext.keys.active.length > 0
-).then(() =>
-    rule.log(
-        'client context remoteContext keys:',
-        window.evolv.client.context.remoteContext.keys,
-        `${(performance.now() - rule.perf).toFixed(2)}ms`
-    )
-);
 
 function extendRule(rule) {
     var ENode = rule.$().constructor;
@@ -52,11 +36,15 @@ function extendRule(rule) {
     };
 }
 
-rule.isActive = () => {
-    return Array.from(document.querySelector('html').classList).includes(
-        'evolv_web_fg70f47y0'
-    );
-};
+if (this && this.key) {
+    rule.key = this.key;
+} else {
+    rule.isActive = () => {
+        return window.location.href.includes(
+            'https://www.verizon.com/sales/next/expresscheckout.html'
+        );
+    };
+}
 
 function instrumentPage() {
     store.instrumentDOM({
@@ -1281,7 +1269,6 @@ function addSlide(slide, promoSection, observer) {
         rule.whenItem('payment-info').then((paymentInfo) => {
             paymentInfo.markOnce('evolv-promo-section').each((paymentInfo) => {
                 paymentInfo.beforeMe(promoSection);
-                rule.log('PROMOSECTION:', promoSection, $$('payment-info'));
             });
         });
     }
@@ -2070,7 +2057,6 @@ function makeFooter() {
 }
 
 function start() {
-    rule.debug('START');
     editHeading();
     makeButtonBar();
     editProducts();

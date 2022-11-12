@@ -21,8 +21,14 @@ export function initializeCatalyst() {
                     set(target, property, value) {
                         target[property] = value;
 
-                        if (property === 'id' || property === 'isActive') {
-                            sandbox._evolvContext.updateState();
+                        if (property === 'key') {
+                            sandbox._evolvContext.initializeActiveKeyListener(
+                                value
+                            );
+                        } else if (property === 'isActive') {
+                            sandbox._evolvContext.initializeIsActiveListener(
+                                value
+                            );
                         }
 
                         return true;
@@ -37,58 +43,76 @@ export function initializeCatalyst() {
         },
     });
 
-    catalyst.initVariant = (context, variant) => {
-        const sandbox = window.evolv.catalyst[context];
-        sandbox.whenContext('active').then(() => {
-            debug('variant active:', variant);
-            document.body.classList.add(`evolv-${variant}`);
-        });
+    // catalyst.initVariant = (context, variant) => {
+    //     const sandbox = window.evolv.catalyst[context];
+    //     sandbox.whenContext('active').then(() => {
+    //         debug('variant active:', variant);
+    //         document.body.classList.add(`evolv-${variant}`);
+    //     });
 
-        sandbox.whenContext('inactive').then(() => {
-            debug('variant inactive:', variant);
-            document.body.classList.remove(`evolv-${variant}`);
-        });
+    //     sandbox.whenContext('inactive').then(() => {
+    //         debug('variant inactive:', variant);
+    //         document.body.classList.remove(`evolv-${variant}`);
+    //     });
 
-        return sandbox;
-    };
+    //     return sandbox;
+    // };
 
     catalyst._intervalPoll = initializeIntervalPoll(catalyst);
 
     // SPA mutation observer for all sandboxes
-    debug('init evolv context observer: watching html');
-    new MutationObserver(() => {
-        catalyst.log(
-            'SPA:',
-            Array.from(document.documentElement.classList).join(', ')
-        );
-        catalyst.sandboxes.forEach((sandbox) => {
-            const oldState = sandbox._evolvContext.state;
-            const newState = sandbox._evolvContext.updateState();
-            if (
-                (oldState === 'inactive' || oldState === undefined) &&
-                newState === 'active'
-            ) {
-                sandbox._evolvContext.onActivate.forEach((func) => func());
-            } else if (oldState === 'active' && newState === 'inactive') {
-                sandbox._evolvContext.onDeactivate.forEach((func) => func());
-            }
-        });
-    }).observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ['class'],
-    });
+    // debug('init evolv context observer: watching html');
+    // new MutationObserver(() => {
+    //     catalyst.log(
+    //         'SPA:',
+    //         Array.from(document.documentElement.classList).join(', ')
+    //     );
+    //     catalyst.sandboxes.forEach((sandbox) => {
+    //         const oldState = sandbox._evolvContext.state;
+    //         const newState = sandbox._evolvContext.updateState();
+    //         if (
+    //             (oldState === 'inactive' || oldState === undefined) &&
+    //             newState === 'active'
+    //         ) {
+    //             sandbox._evolvContext.onActivate.forEach((func) => func());
+    //         } else if (oldState === 'active' && newState === 'inactive') {
+    //             sandbox._evolvContext.onDeactivate.forEach((func) => func());
+    //         }
+    //     });
+    // }).observe(document.documentElement, {
+    //     attributes: true,
+    //     attributeFilter: ['class'],
+    // });
 
     // The main mutation observer for all sandboxes
-    debug('init main observer: watching body');
-    new MutationObserver(() => {
-        catalyst.sandboxes.forEach((sandbox) => {
-            sandbox.instrument.process();
-        });
-    }).observe(document.body, {
-        childList: true,
-        attributes: true,
-        subtree: true,
-    });
+    debug('init global observer');
+    catalyst._globalObserver = {
+        observer: new MutationObserver(() => {
+            let anySandboxActive = false;
+            for (const sandbox of catalyst.sandboxes) {
+                if (sandbox._evolvContext.state.current === 'inactive')
+                    continue;
+                anySandboxActive = true;
+                sandbox.instrument.debouncedProcessQueue();
+            }
+
+            if (!anySandboxActive) catalyst._globalObserver.disconnect();
+        }),
+        connect: () => {
+            debug('global observer: observe');
+            catalyst._globalObserver.observer.observe(document.body, {
+                childList: true,
+                attributes: true,
+                subtree: true,
+            });
+        },
+        disconnect: () => {
+            debug('global observer: disconnect');
+            catalyst._globalObserver.observer.disconnect();
+        },
+    };
+
+    catalyst._globalObserver.connect();
 
     return catalystProxy;
 }

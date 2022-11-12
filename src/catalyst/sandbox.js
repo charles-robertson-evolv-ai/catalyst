@@ -4,7 +4,7 @@ import { $, select, selectAll } from './enode';
 import { initializeInstrument } from './instrument';
 import { initializeEvolvContext } from './evolv-context';
 import {
-    initializeWhenContext,
+    // initializeWhenContext,
     initializeWhenInstrument,
     initializeWhenDOM,
     initializeWhenItem,
@@ -23,16 +23,12 @@ function initializeSandbox(name) {
         debug(`init catalyst version ${version}`);
         sandbox.version = version;
     } else {
-        debug(`init context: ${name}`);
-        debug(
-            'SPA:',
-            Array.from(document.documentElement.classList).join(', ')
-        );
+        debug(`init context sandbox: ${name}`);
     }
 
     sandbox.$ = $;
     sandbox.$$ = (name) => {
-        const item = sandbox.instrument.items[name];
+        const item = sandbox.instrument.queue[name];
 
         if (!item) {
             if (!sandbox.instrument.findDefinition(name)) {
@@ -55,9 +51,10 @@ function initializeSandbox(name) {
     sandbox.app = {};
 
     initializeInstrument(sandbox);
-    initializeEvolvContext(sandbox);
+    if (sandbox.name !== 'catalyst')
+        sandbox._evolvContext = initializeEvolvContext(sandbox);
 
-    sandbox.whenContext = initializeWhenContext(sandbox);
+    // sandbox.whenContext = initializeWhenContext(sandbox);
     sandbox.whenInstrument = initializeWhenInstrument(sandbox);
     sandbox.whenDOM = initializeWhenDOM(sandbox);
     sandbox.whenItem = initializeWhenItem(sandbox);
@@ -65,7 +62,7 @@ function initializeSandbox(name) {
     sandbox.waitUntil = initializeWaitUntil(sandbox);
 
     // Backwards compatibility
-    sandbox.reactivate = sandbox.instrument.process;
+    sandbox.reactivate = sandbox.instrument.debouncedProcessQueue;
 
     return sandbox;
 }

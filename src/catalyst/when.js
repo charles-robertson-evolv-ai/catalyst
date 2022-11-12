@@ -1,46 +1,50 @@
 import { $, ENode } from './enode';
 
+// function initializeWhenContext(sandbox) {
+//     return (state) => {
+//         if (state === 'active' || undefined) {
+//             return {
+//                 then: (callback) => {
+//                     sandbox.debug(
+//                         `whenContext: queue callback`,
+//                         callback,
+//                         `for 'active' state, current state: '${sandbox._evolvContext.state}'`
+//                     );
+//                     sandbox._evolvContext.onActivate.push(callback);
+//                     if (sandbox._evolvContext.state === 'active') {
+//                         callback();
+//                     }
+//                 },
+//             };
+//         } else if (state === 'inactive') {
+//             return {
+//                 then: (callback) => {
+//                     sandbox.debug(
+//                         `whenContext: queue callback`,
+//                         callback,
+//                         `for 'inactive' state, current state: '${sandbox._evolvContext.state}'`
+//                     );
+//                     if (callback)
+//                         sandbox._evolvContext.onDeactivate.push(callback);
+//                     if (sandbox._evolvContext.state === 'inactive') {
+//                         callback();
+//                     }
+//                 },
+//             };
+//         } else {
+//             return {
+//                 then: () => {
+//                     warn(
+//                         `whenContext: unknown state, requires 'active' or 'inactive', default is 'active'`
+//                     );
+//                 },
+//             };
+//         }
+//     };
+// }
+
 function initializeWhenContext(sandbox) {
-    return (state) => {
-        if (state === 'active' || undefined) {
-            return {
-                then: (callback) => {
-                    sandbox.debug(
-                        `whenContext: queue callback`,
-                        callback,
-                        `for 'active' state, current state: '${sandbox._evolvContext.state}'`
-                    );
-                    sandbox._evolvContext.onActivate.push(callback);
-                    if (sandbox._evolvContext.state === 'active') {
-                        callback();
-                    }
-                },
-            };
-        } else if (state === 'inactive') {
-            return {
-                then: (callback) => {
-                    sandbox.debug(
-                        `whenContext: queue callback`,
-                        callback,
-                        `for 'inactive' state, current state: '${sandbox._evolvContext.state}'`
-                    );
-                    if (callback)
-                        sandbox._evolvContext.onDeactivate.push(callback);
-                    if (sandbox._evolvContext.state === 'inactive') {
-                        callback();
-                    }
-                },
-            };
-        } else {
-            return {
-                then: () => {
-                    warn(
-                        `whenContext: unknown state, requires 'active' or 'inactive', default is 'active'`
-                    );
-                },
-            };
-        }
-    };
+    return (state) => {};
 }
 
 function initializeWhenInstrument(sandbox) {
@@ -101,7 +105,7 @@ function initializeWhenDOM(sandbox) {
                     ],
                     asClass: null,
                 };
-                sandbox.instrument.process();
+                sandbox.instrument.debouncedProcessQueue();
             },
             // Deprecated
             thenInBulk: (callback) => {
@@ -117,7 +121,7 @@ function initializeWhenDOM(sandbox) {
                     ],
                     asClass: null,
                 };
-                sandbox.instrument.process();
+                sandbox.instrument.debouncedProcessQueue();
             },
             // Deprecated
             reactivateOnChange: () => {},
@@ -172,7 +176,7 @@ function initializeWhenItem(sandbox) {
                 } */
 
                 definition.onConnect.push(newEntry);
-                sandbox.instrument.process();
+                sandbox.instrument.debouncedProcessQueue();
             },
             // Deprecated
             thenInBulk: (callback) => {
@@ -181,7 +185,7 @@ function initializeWhenItem(sandbox) {
                         callback($$(key));
                     },
                 ];
-                sandbox.instrument.process();
+                sandbox.instrument.debouncedProcessQueue();
             },
             // Deprecated
             reactivateOnChange: function () {},
@@ -207,15 +211,15 @@ function initializeWaitUntil(sandbox) {
         queue: [],
     };
 
-    sandbox.whenContext('active').then(() => {
-        if (
-            window.evolv &&
-            window.evolv.catalyst &&
-            window.evolv.catalyst._intervalPoll &&
-            window.evolv.catalyst._intervalPoll.usePolling
-        )
-            window.evolv.catalyst._intervalPoll.startPolling();
-    });
+    // sandbox.whenContext('active').then(() => {
+    //     if (
+    //         window.evolv &&
+    //         window.evolv.catalyst &&
+    //         window.evolv.catalyst._intervalPoll &&
+    //         window.evolv.catalyst._intervalPoll.usePolling
+    //     )
+    //         window.evolv.catalyst._intervalPoll.startPolling();
+    // });
 
     return (condition, timeout) => {
         sandbox.debug(
@@ -239,7 +243,7 @@ function initializeWaitUntil(sandbox) {
 }
 
 export {
-    initializeWhenContext,
+    // initializeWhenContext,
     initializeWhenInstrument,
     initializeWhenDOM,
     initializeWhenItem,
