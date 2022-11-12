@@ -481,38 +481,6 @@ function initializeInstrument(sandbox) {
     instrument._onInstrument = [];
     instrument._didItemChange = false;
 
-    function processQueueLoop(items, definitions) {
-        for (const key in definitions) {
-            processQueueItem(key, items, definitions);
-        }
-    }
-
-    instrument.processQueue = (items, definitions) => {
-        if (instrument._isProcessing) return;
-        // if (sandbox._evolvContext.state === 'inactive') return;
-
-        instrument._isProcessing = true;
-        instrument._processCount++;
-        instrument._didItemChange = false;
-        let then = performance.now();
-
-        processQueueLoop(items, definitions);
-
-        debug(
-            'process instrument: complete',
-            (performance.now() - then).toFixed(2),
-            instrument._processCount
-        );
-
-        instrument._isProcessing = false;
-
-        // Covers scenario where mutations are missed during long process
-        if (instrument._didItemChange) {
-            debug('process instrument: item changed, reprocessing');
-            instrument.debouncedProcessQueue();
-        }
-    };
-
     function processQueueItem(key, items, definitions) {
         const definition = definitions[key];
 
@@ -568,6 +536,38 @@ function initializeInstrument(sandbox) {
             processQueueLoop(definition.children);
         }
     }
+
+    function processQueueLoop(items, definitions) {
+        for (const key in definitions) {
+            processQueueItem(key, items, definitions);
+        }
+    }
+
+    instrument.processQueue = (items, definitions) => {
+        if (instrument._isProcessing) return;
+        // if (sandbox._evolvContext.state === 'inactive') return;
+
+        instrument._isProcessing = true;
+        instrument._processCount++;
+        instrument._didItemChange = false;
+        let then = performance.now();
+
+        processQueueLoop(items, definitions);
+
+        debug(
+            'process instrument: complete',
+            (performance.now() - then).toFixed(2),
+            instrument._processCount
+        );
+
+        instrument._isProcessing = false;
+
+        // Covers scenario where mutations are missed during long process
+        if (instrument._didItemChange) {
+            debug('process instrument: item changed, reprocessing');
+            instrument.debouncedProcessQueue();
+        }
+    };
 
     instrument.debouncedProcessQueue = debounce(() => {
         instrument.processQueue(instrument.queue, instrument.definitions);
@@ -626,7 +626,7 @@ function initializeInstrument(sandbox) {
             addItem(key, select, options);
         }
 
-        instrument.debouncedProcessQueue();
+        instrument.processQueue(instrument.queue, instrument.definitions);
     };
 
     instrument.findDefinition = (searchKey) => {
@@ -651,6 +651,8 @@ function initializeInstrument(sandbox) {
     };
 
     sandbox.store.instrumentDOM = (data) => {
+        const argumentArray = [];
+
         for (const key in data) {
             const dataItem = data[key];
             const select = Object.getOwnPropertyDescriptor(dataItem, 'dom').get;
@@ -658,8 +660,10 @@ function initializeInstrument(sandbox) {
             if (dataItem.hasOwnProperty('asClass'))
                 options.asClass = dataItem.asClass;
 
-            instrument.add(key, select, options);
+            argumentArray.push([key, select, options]);
         }
+
+        instrument.add(argumentArray);
     };
 
     sandbox.instrument = instrument;
