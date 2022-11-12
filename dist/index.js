@@ -783,6 +783,49 @@ function initializeEvolvContext(sandbox) {
     // ];
 }
 
+function initializeWhenContext(sandbox) {
+    return (state) => {
+        if (state === 'active' || undefined) {
+            return {
+                then: (callback) => {
+                    sandbox.debug(
+                        `whenContext: queue callback`,
+                        callback,
+                        `for 'active' state, current state: '${sandbox._evolvContext.state.current}'`
+                    );
+                    sandbox._evolvContext.onActivate.push(callback);
+                    if (sandbox._evolvContext.state.current === 'active') {
+                        callback();
+                    }
+                },
+            };
+        } else if (state === 'inactive') {
+            return {
+                then: (callback) => {
+                    sandbox.debug(
+                        `whenContext: queue callback`,
+                        callback,
+                        `for 'inactive' state, current state: '${sandbox._evolvContext.state.current}'`
+                    );
+                    if (callback)
+                        sandbox._evolvContext.onDeactivate.push(callback);
+                    if (sandbox._evolvContext.state === 'inactive') {
+                        callback();
+                    }
+                },
+            };
+        } else {
+            return {
+                then: () => {
+                    warn(
+                        `whenContext: unknown state, requires 'active' or 'inactive', default is 'active'`
+                    );
+                },
+            };
+        }
+    };
+}
+
 function initializeWhenInstrument(sandbox) {
     return () => {
         sandbox.debug('whenInstrument: add function to instrument queue');
@@ -1020,7 +1063,7 @@ function initializeSandbox(name) {
     if (sandbox.name !== 'catalyst')
         sandbox._evolvContext = initializeEvolvContext(sandbox);
 
-    // sandbox.whenContext = initializeWhenContext(sandbox);
+    sandbox.whenContext = initializeWhenContext(sandbox);
     sandbox.whenInstrument = initializeWhenInstrument(sandbox);
     sandbox.whenDOM = initializeWhenDOM(sandbox);
     sandbox.whenItem = initializeWhenItem(sandbox);
@@ -1028,7 +1071,7 @@ function initializeSandbox(name) {
     sandbox.waitUntil = initializeWaitUntil(sandbox);
 
     // Backwards compatibility
-    sandbox.reactivate = sandbox.instrument.debouncedProcessQueue;
+    sandbox.reactivate = sandbox.instrument.processQueue;
 
     return sandbox;
 }

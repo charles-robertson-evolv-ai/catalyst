@@ -4,7 +4,7 @@ import { $, select, selectAll } from './enode';
 import { initializeInstrument } from './instrument';
 import { initializeEvolvContext } from './evolv-context';
 import {
-    // initializeWhenContext,
+    initializeWhenContext,
     initializeWhenInstrument,
     initializeWhenDOM,
     initializeWhenItem,
@@ -54,7 +54,7 @@ function initializeSandbox(name) {
     if (sandbox.name !== 'catalyst')
         sandbox._evolvContext = initializeEvolvContext(sandbox);
 
-    // sandbox.whenContext = initializeWhenContext(sandbox);
+    sandbox.whenContext = initializeWhenContext(sandbox);
     sandbox.whenInstrument = initializeWhenInstrument(sandbox);
     sandbox.whenDOM = initializeWhenDOM(sandbox);
     sandbox.whenItem = initializeWhenItem(sandbox);
@@ -62,7 +62,7 @@ function initializeSandbox(name) {
     sandbox.waitUntil = initializeWaitUntil(sandbox);
 
     // Backwards compatibility
-    sandbox.reactivate = sandbox.instrument.debouncedProcessQueue;
+    sandbox.reactivate = sandbox.instrument.processQueue;
 
     return sandbox;
 }

@@ -1,50 +1,46 @@
 import { $, ENode } from './enode';
 
-// function initializeWhenContext(sandbox) {
-//     return (state) => {
-//         if (state === 'active' || undefined) {
-//             return {
-//                 then: (callback) => {
-//                     sandbox.debug(
-//                         `whenContext: queue callback`,
-//                         callback,
-//                         `for 'active' state, current state: '${sandbox._evolvContext.state}'`
-//                     );
-//                     sandbox._evolvContext.onActivate.push(callback);
-//                     if (sandbox._evolvContext.state === 'active') {
-//                         callback();
-//                     }
-//                 },
-//             };
-//         } else if (state === 'inactive') {
-//             return {
-//                 then: (callback) => {
-//                     sandbox.debug(
-//                         `whenContext: queue callback`,
-//                         callback,
-//                         `for 'inactive' state, current state: '${sandbox._evolvContext.state}'`
-//                     );
-//                     if (callback)
-//                         sandbox._evolvContext.onDeactivate.push(callback);
-//                     if (sandbox._evolvContext.state === 'inactive') {
-//                         callback();
-//                     }
-//                 },
-//             };
-//         } else {
-//             return {
-//                 then: () => {
-//                     warn(
-//                         `whenContext: unknown state, requires 'active' or 'inactive', default is 'active'`
-//                     );
-//                 },
-//             };
-//         }
-//     };
-// }
-
 function initializeWhenContext(sandbox) {
-    return (state) => {};
+    return (state) => {
+        if (state === 'active' || undefined) {
+            return {
+                then: (callback) => {
+                    sandbox.debug(
+                        `whenContext: queue callback`,
+                        callback,
+                        `for 'active' state, current state: '${sandbox._evolvContext.state.current}'`
+                    );
+                    sandbox._evolvContext.onActivate.push(callback);
+                    if (sandbox._evolvContext.state.current === 'active') {
+                        callback();
+                    }
+                },
+            };
+        } else if (state === 'inactive') {
+            return {
+                then: (callback) => {
+                    sandbox.debug(
+                        `whenContext: queue callback`,
+                        callback,
+                        `for 'inactive' state, current state: '${sandbox._evolvContext.state.current}'`
+                    );
+                    if (callback)
+                        sandbox._evolvContext.onDeactivate.push(callback);
+                    if (sandbox._evolvContext.state === 'inactive') {
+                        callback();
+                    }
+                },
+            };
+        } else {
+            return {
+                then: () => {
+                    warn(
+                        `whenContext: unknown state, requires 'active' or 'inactive', default is 'active'`
+                    );
+                },
+            };
+        }
+    };
 }
 
 function initializeWhenInstrument(sandbox) {
@@ -243,7 +239,7 @@ function initializeWaitUntil(sandbox) {
 }
 
 export {
-    // initializeWhenContext,
+    initializeWhenContext,
     initializeWhenInstrument,
     initializeWhenDOM,
     initializeWhenItem,
