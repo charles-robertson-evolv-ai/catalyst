@@ -1,4 +1,4 @@
-var version = "0.1.15";
+var version = "0.1.18";
 
 const environmentLogDefaults = {
     // VCG
@@ -959,16 +959,32 @@ function initializeWhenItem(sandbox) {
                 } */
 
                 definition.onConnect.push(newEntry);
-                sandbox.instrument.debouncedProcessQueue();
+                // sandbox.instrument.debouncedProcessQueue();
+                if (sandbox.instrument.queue[key].enode.isConnected())
+                    newEntry();
             },
             // Deprecated
             thenInBulk: (callback) => {
-                definition.onConnect = [
-                    () => {
-                        callback($$(key));
-                    },
-                ];
-                sandbox.instrument.debouncedProcessQueue();
+                sandbox.debug(`whenItem: '${key}'`, 'add on connect', {
+                    callback,
+                });
+
+                const newEntry = () => {
+                    sandbox.debug(
+                        `whenItem: '${key}'`,
+                        'fire on connect:',
+                        callback
+                    );
+                    callback($$(key));
+                };
+
+                if (!definition.onConnect) {
+                    definition.onConnect = [];
+                }
+
+                definition.onConnect.push(newEntry);
+                if (sandbox.instrument.queue[key].enode.isConnected())
+                    newEntry();
             },
             // Deprecated
             reactivateOnChange: function () {},
