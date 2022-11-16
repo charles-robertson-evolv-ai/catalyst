@@ -1,4 +1,4 @@
-var version = "0.1.18";
+var version = "0.1.19";
 
 const environmentLogDefaults = {
     // VCG
@@ -1049,7 +1049,7 @@ function initializeSandbox(name) {
     const debug = sandbox.debug;
     const warn = sandbox.warn;
     if (name === 'catalyst') {
-        debug(`init catalyst version ${version}`);
+        debug(`init catalyst version ${version}, log level: ${sandbox.logs}`);
         sandbox.version = version;
     } else {
         debug(`init context sandbox: ${name}`);
