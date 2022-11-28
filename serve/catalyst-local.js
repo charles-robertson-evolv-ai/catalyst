@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    var version = "0.1.19";
+    var version = "0.1.21";
 
     const environmentLogDefaults = {
         // VCG
