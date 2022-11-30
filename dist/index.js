@@ -716,7 +716,6 @@ function initializeWhenInstrument(sandbox) {
 }
 
 // Accepts select string or a select function like instrument does
-// TODO: Remove select function and only allow ENode
 // TODO: Combine instrument items with identical select functions and
 // disallow duplicate onConnect functions.
 function initializeWhenDOM(sandbox) {
@@ -735,7 +734,7 @@ function initializeWhenDOM(sandbox) {
       return $(select);
     };else if (_typeof(select) === 'object' && select.constructor === ENode) selectFunc = function selectFunc() {
       return select;
-    };else if (typeof select === 'function') selectFunc = select;else {
+    };else {
       sandbox.warn("whenDOM: unrecognized input ".concat(select, ", requires string, enode, or selection function"));
       return {
         then: function then() {
@@ -743,32 +742,22 @@ function initializeWhenDOM(sandbox) {
         }
       };
     }
+    var thenFunc = function thenFunc(callback) {
+      var count = sandbox._whenDOMCount[keyPrefix]++;
+      var key = keyPrefix + count;
+      sandbox.instrument.definitions[key] = {
+        select: selectFunc,
+        onConnect: [function () {
+          callback($$(key));
+        }],
+        asClass: null
+      };
+      sandbox.instrument.debouncedProcessQueue();
+    };
     return {
-      then: function then(callback) {
-        var count = sandbox._whenDOMCount[keyPrefix]++;
-        var key = keyPrefix + count;
-        sandbox.instrument.definitions[key] = {
-          select: selectFunc,
-          onConnect: [function () {
-            callback($$(key));
-          }],
-          asClass: null
-        };
-        sandbox.instrument.debouncedProcessQueue();
-      },
+      then: thenFunc,
       // Deprecated
-      thenInBulk: function thenInBulk(callback) {
-        var count = sandbox._whenDOMCount[keyPrefix]++;
-        var key = keyPrefix + count;
-        sandbox.instrument.definitions[key] = {
-          select: selectFunc,
-          onConnect: [function () {
-            callback($$(key));
-          }],
-          asClass: null
-        };
-        sandbox.instrument.debouncedProcessQueue();
-      },
+      thenInBulk: thenFunc,
       // Deprecated
       reactivateOnChange: function reactivateOnChange() {}
     };
@@ -776,7 +765,7 @@ function initializeWhenDOM(sandbox) {
 }
 function initializeWhenItem(sandbox) {
   var $$ = sandbox.$$;
-  return function (key, options) {
+  return function (key) {
     var definition = sandbox.instrument.findDefinition(key);
     if (definition === null) {
       sandbox.warn("whenItem: instrument item '".concat(key, "' not defined"));
@@ -786,55 +775,30 @@ function initializeWhenItem(sandbox) {
         }
       };
     }
-
-    // let scope = null;
-
+    var thenFunc = function thenFunc(callback) {
+      sandbox.debug("whenItem: '".concat(key, "'"), 'add on connect', {
+        callback: callback
+      });
+      var newEntry = function newEntry() {
+        sandbox.debug("whenItem: '".concat(key, "'"), 'fire on connect:', callback);
+        callback($$(key));
+      };
+      newEntry.callbackString = callback.toString();
+      if (!definition.onConnect) {
+        definition.onConnect = [];
+      } else if (definition.onConnect.findIndex(function (entry) {
+        return entry.callbackString === newEntry.callbackString;
+      }) !== -1) {
+        sandbox.debug("whenItem: duplicate callback '".concat(newEntry.callbackString, "' not assigned to item '").concat(key, "'"));
+        return;
+      }
+      definition.onConnect.push(newEntry);
+      if (sandbox.instrument.queue[key].enode.isConnected()) newEntry();
+    };
     return {
-      then: function then(callback) {
-        sandbox.debug("whenItem: '".concat(key, "'"), 'add on connect', {
-          callback: callback
-        });
-
-        // Don't add duplicate callbacks (not ready yet. requires refactoring definitions and instrumentation)
-        // const callbackString = callback.toString();
-
-        var newEntry = function newEntry() {
-          sandbox.debug("whenItem: '".concat(key, "'"), 'fire on connect:', callback);
-          callback($$(key));
-        };
-        // const newEntryString = newEntry.toString();
-        if (!definition.onConnect) {
-          definition.onConnect = [];
-        } /* else if (
-            definition.onConnect.findIndex(
-                (entry) => entry.callbackString === callbackString
-            ) !== -1
-          ) {
-            sandbox.debug(
-                `whenItem: Duplicate callback ${newEntryString}, not assigned to item '${key}'`
-            );
-            return;
-          } */
-
-        definition.onConnect.push(newEntry);
-        // sandbox.instrument.debouncedProcessQueue();
-        if (sandbox.instrument.queue[key].enode.isConnected()) newEntry();
-      },
+      then: thenFunc,
       // Deprecated
-      thenInBulk: function thenInBulk(callback) {
-        sandbox.debug("whenItem: '".concat(key, "'"), 'add on connect', {
-          callback: callback
-        });
-        var newEntry = function newEntry() {
-          sandbox.debug("whenItem: '".concat(key, "'"), 'fire on connect:', callback);
-          callback($$(key));
-        };
-        if (!definition.onConnect) {
-          definition.onConnect = [];
-        }
-        definition.onConnect.push(newEntry);
-        if (sandbox.instrument.queue[key].enode.isConnected()) newEntry();
-      },
+      thenInBulk: thenFunc,
       // Deprecated
       reactivateOnChange: function reactivateOnChange() {}
     };
@@ -859,17 +823,6 @@ function initializeWaitUntil(sandbox) {
   sandbox._intervalPoll = {
     queue: []
   };
-
-  // sandbox.whenContext('active').then(() => {
-  //     if (
-  //         window.evolv &&
-  //         window.evolv.catalyst &&
-  //         window.evolv.catalyst._intervalPoll &&
-  //         window.evolv.catalyst._intervalPoll.usePolling
-  //     )
-  //         window.evolv.catalyst._intervalPoll.startPolling();
-  // });
-
   return function (condition, timeout) {
     sandbox.debug('waitUntil: add callback to interval poll queue, condition:', condition);
     return {
@@ -896,7 +849,8 @@ function initializeSandbox(name) {
   var debug = sandbox.debug;
   var warn = sandbox.warn;
   if (name === 'catalyst') {
-    debug("init catalyst version ".concat(version, ", log level: ").concat(sandbox.logs));
+    debug("init catalyst version ".concat(version));
+    debug("log level: ".concat(sandbox.logs));
     sandbox.version = version;
   } else {
     debug("init context sandbox: ".concat(name));
