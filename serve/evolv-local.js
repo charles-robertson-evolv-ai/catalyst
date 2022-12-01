@@ -849,46 +849,56 @@
     // TODO: Combine instrument items with identical select functions and
     // disallow duplicate onConnect functions.
     function initializeWhenDOM(sandbox) {
-        sandbox._whenDOMCount = {};
+        const counts = {};
+        const history = [];
+        const debug = sandbox.debug;
+        const warn = sandbox.warn;
 
         return (select, options) => {
-            sandbox.debug('whenDOM:', select);
-            const $$ = sandbox.$$;
-            let selectFunc;
-            let keyPrefix =
+            const logName =
+                options && options.logName ? options.logName : 'whenDOM';
+            const keyPrefix =
                 options && options.keyPrefix ? options.keyPrefix : 'when-dom-';
+            let selectFunc, count, key, foundPrevious;
+            const previous = history.find((item) => item.select === select);
 
-            // Increment keys with different prefixes separately;
-            if (!sandbox._whenDOMCount[keyPrefix])
-                sandbox._whenDOMCount[keyPrefix] = 1;
+            if (previous && keyPrefix === previous.keyPrefix) {
+                debug(`${logName}: ${select} found, adding on-connect callback`);
+                selectFunc = previous.selectFunc;
+                key = previous.key;
+                foundPrevious = true;
+            } else {
+                // Increment keys with different prefixes separately;
+                if (!counts[keyPrefix]) counts[keyPrefix] = 1;
 
-            // Accept string, enode, or select function
-            if (typeof select === 'string') selectFunc = () => $$1(select);
-            else if (typeof select === 'object' && select.constructor === ENode)
-                selectFunc = () => select;
-            else {
-                sandbox.warn(
-                    `whenDOM: unrecognized input ${select}, requires string, enode, or selection function`
-                );
-                return {
-                    then: () => null,
-                };
+                // Accept string or enode
+                if (typeof select === 'string') selectFunc = () => $$1(select);
+                else if (typeof select === 'object' && select.constructor === ENode)
+                    selectFunc = () => select;
+                else {
+                    warn(
+                        `${logName}: unrecognized input ${select}, requires string or enode`
+                    );
+                    return {
+                        then: () => null,
+                    };
+                }
+
+                count = counts[keyPrefix]++;
+                key = keyPrefix + count;
+
+                history.push({
+                    select: select,
+                    selectFunc: selectFunc,
+                    keyPrefix: keyPrefix,
+                    key: key,
+                });
             }
 
             const thenFunc = (callback) => {
-                const count = sandbox._whenDOMCount[keyPrefix]++;
-                const key = keyPrefix + count;
-
-                sandbox.instrument.definitions[key] = {
-                    select: selectFunc,
-                    onConnect: [
-                        () => {
-                            callback($$(key));
-                        },
-                    ],
-                    asClass: null,
-                };
-                sandbox.instrument.debouncedProcessQueue();
+                if (!foundPrevious)
+                    sandbox.instrument.add(key, selectFunc, { asClass: null });
+                sandbox.whenItem(key, { logName: logName }).then(callback);
             };
 
             return {
@@ -903,28 +913,28 @@
 
     function initializeWhenItem(sandbox) {
         const $$ = sandbox.$$;
+        const debug = sandbox.debug;
+        const warn = sandbox.warn;
 
-        return (key) => {
+        return (key, options) => {
             const definition = sandbox.instrument.findDefinition(key);
+            const logName =
+                options && options.logName ? options.logName : 'whenItem';
 
             if (definition === null) {
-                sandbox.warn(`whenItem: instrument item '${key}' not defined`);
+                warn(`${logName}: instrument item '${key}' not defined`);
                 return {
                     then: () => null,
                 };
             }
 
             const thenFunc = (callback) => {
-                sandbox.debug(`whenItem: '${key}'`, 'add on connect', {
+                debug(`${logName}: '${key}' add on-connect callback`, {
                     callback,
                 });
 
                 const newEntry = () => {
-                    sandbox.debug(
-                        `whenItem: '${key}'`,
-                        'fire on connect:',
-                        callback
-                    );
+                    debug(`${logName}: '${key}'`, 'fire on connect:', callback);
                     callback($$(key));
                 };
 
@@ -937,14 +947,19 @@
                         (entry) => entry.callbackString === newEntry.callbackString
                     ) !== -1
                 ) {
-                    sandbox.debug(
-                        `whenItem: duplicate callback '${newEntry.callbackString}' not assigned to item '${key}'`
+                    debug(
+                        `${logName}: duplicate callback not assigned to item '${key}':`,
+                        callback
                     );
                     return;
                 }
 
                 definition.onConnect.push(newEntry);
-                if (sandbox.instrument.queue[key].enode.isConnected()) newEntry();
+                if (
+                    sandbox.instrument.queue[key] &&
+                    sandbox.instrument.queue[key].enode.isConnected()
+                )
+                    newEntry();
             };
 
             return {
@@ -1215,7 +1230,7 @@
         // });
 
         // The main mutation observer for all sandboxes
-        debug('init global observer');
+        debug('global observer: init');
         catalyst._globalObserver = {
             observer: new MutationObserver(() => {
                 let anySandboxActive = false;

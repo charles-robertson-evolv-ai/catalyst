@@ -85,7 +85,7 @@ export function initializeCatalyst() {
     // });
 
     // The main mutation observer for all sandboxes
-    debug('init global observer');
+    debug('global observer: init');
     catalyst._globalObserver = {
         observer: new MutationObserver(() => {
             let anySandboxActive = false;

@@ -719,40 +719,55 @@ function initializeWhenInstrument(sandbox) {
 // TODO: Combine instrument items with identical select functions and
 // disallow duplicate onConnect functions.
 function initializeWhenDOM(sandbox) {
-  sandbox._whenDOMCount = {};
+  var counts = {};
+  var history = [];
+  var debug = sandbox.debug;
+  var warn = sandbox.warn;
   return function (select, options) {
-    sandbox.debug('whenDOM:', select);
-    var $$ = sandbox.$$;
-    var selectFunc;
+    var logName = options && options.logName ? options.logName : 'whenDOM';
     var keyPrefix = options && options.keyPrefix ? options.keyPrefix : 'when-dom-';
+    var selectFunc, count, key, foundPrevious;
+    var previous = history.find(function (item) {
+      return item.select === select;
+    });
+    if (previous && keyPrefix === previous.keyPrefix) {
+      debug("".concat(logName, ": ").concat(select, " found, adding on-connect callback"));
+      selectFunc = previous.selectFunc;
+      key = previous.key;
+      foundPrevious = true;
+    } else {
+      // Increment keys with different prefixes separately;
+      if (!counts[keyPrefix]) counts[keyPrefix] = 1;
 
-    // Increment keys with different prefixes separately;
-    if (!sandbox._whenDOMCount[keyPrefix]) sandbox._whenDOMCount[keyPrefix] = 1;
-
-    // Accept string, enode, or select function
-    if (typeof select === 'string') selectFunc = function selectFunc() {
-      return $(select);
-    };else if (_typeof(select) === 'object' && select.constructor === ENode) selectFunc = function selectFunc() {
-      return select;
-    };else {
-      sandbox.warn("whenDOM: unrecognized input ".concat(select, ", requires string, enode, or selection function"));
-      return {
-        then: function then() {
-          return null;
-        }
-      };
+      // Accept string or enode
+      if (typeof select === 'string') selectFunc = function selectFunc() {
+        return $(select);
+      };else if (_typeof(select) === 'object' && select.constructor === ENode) selectFunc = function selectFunc() {
+        return select;
+      };else {
+        warn("".concat(logName, ": unrecognized input ").concat(select, ", requires string or enode"));
+        return {
+          then: function then() {
+            return null;
+          }
+        };
+      }
+      count = counts[keyPrefix]++;
+      key = keyPrefix + count;
+      history.push({
+        select: select,
+        selectFunc: selectFunc,
+        keyPrefix: keyPrefix,
+        key: key
+      });
     }
     var thenFunc = function thenFunc(callback) {
-      var count = sandbox._whenDOMCount[keyPrefix]++;
-      var key = keyPrefix + count;
-      sandbox.instrument.definitions[key] = {
-        select: selectFunc,
-        onConnect: [function () {
-          callback($$(key));
-        }],
+      if (!foundPrevious) sandbox.instrument.add(key, selectFunc, {
         asClass: null
-      };
-      sandbox.instrument.debouncedProcessQueue();
+      });
+      sandbox.whenItem(key, {
+        logName: logName
+      }).then(callback);
     };
     return {
       then: thenFunc,
@@ -765,10 +780,13 @@ function initializeWhenDOM(sandbox) {
 }
 function initializeWhenItem(sandbox) {
   var $$ = sandbox.$$;
-  return function (key) {
+  var debug = sandbox.debug;
+  var warn = sandbox.warn;
+  return function (key, options) {
     var definition = sandbox.instrument.findDefinition(key);
+    var logName = options && options.logName ? options.logName : 'whenItem';
     if (definition === null) {
-      sandbox.warn("whenItem: instrument item '".concat(key, "' not defined"));
+      warn("".concat(logName, ": instrument item '").concat(key, "' not defined"));
       return {
         then: function then() {
           return null;
@@ -776,11 +794,11 @@ function initializeWhenItem(sandbox) {
       };
     }
     var thenFunc = function thenFunc(callback) {
-      sandbox.debug("whenItem: '".concat(key, "'"), 'add on connect', {
+      debug("".concat(logName, ": '").concat(key, "' add on-connect callback"), {
         callback: callback
       });
       var newEntry = function newEntry() {
-        sandbox.debug("whenItem: '".concat(key, "'"), 'fire on connect:', callback);
+        debug("".concat(logName, ": '").concat(key, "'"), 'fire on connect:', callback);
         callback($$(key));
       };
       newEntry.callbackString = callback.toString();
@@ -789,11 +807,11 @@ function initializeWhenItem(sandbox) {
       } else if (definition.onConnect.findIndex(function (entry) {
         return entry.callbackString === newEntry.callbackString;
       }) !== -1) {
-        sandbox.debug("whenItem: duplicate callback '".concat(newEntry.callbackString, "' not assigned to item '").concat(key, "'"));
+        debug("".concat(logName, ": duplicate callback not assigned to item '").concat(key, "':"), callback);
         return;
       }
       definition.onConnect.push(newEntry);
-      if (sandbox.instrument.queue[key].enode.isConnected()) newEntry();
+      if (sandbox.instrument.queue[key] && sandbox.instrument.queue[key].enode.isConnected()) newEntry();
     };
     return {
       then: thenFunc,
@@ -1058,7 +1076,7 @@ function initializeCatalyst() {
   // });
 
   // The main mutation observer for all sandboxes
-  debug('init global observer');
+  debug('global observer: init');
   catalyst._globalObserver = {
     observer: new MutationObserver(function () {
       var anySandboxActive = false;
