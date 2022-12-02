@@ -481,7 +481,7 @@
         instrument.queue = {};
         instrument._isProcessing = false;
         instrument._processCount = 0;
-        instrument._onInstrument = [];
+        instrument._onMutate = [];
         instrument._didItemChange = false;
 
         function processQueueItem(key, items, definitions) {
@@ -570,6 +570,8 @@
                 debug('process instrument: item changed, reprocessing');
                 instrument.debouncedProcessQueue();
             }
+
+            instrument._onMutate.forEach((callback) => callback());
         };
 
         instrument.debouncedProcessQueue = debounce$1(() => {
@@ -750,37 +752,14 @@
     }
 
     function initializeWhenContext(sandbox) {
+        const debug = sandbox.debug;
+
         return (state) => {
-            if (state === 'active' || undefined) {
-                return {
-                    then: (callback) => {
-                        sandbox.debug(
-                            `whenContext: queue callback`,
-                            callback,
-                            `for 'active' state, current state: '${sandbox._evolvContext.state.current}'`
-                        );
-                        sandbox._evolvContext.onActivate.push(callback);
-                        if (sandbox._evolvContext.state.current === 'active') {
-                            callback();
-                        }
-                    },
-                };
-            } else if (state === 'inactive') {
-                return {
-                    then: (callback) => {
-                        sandbox.debug(
-                            `whenContext: queue callback`,
-                            callback,
-                            `for 'inactive' state, current state: '${sandbox._evolvContext.state.current}'`
-                        );
-                        if (callback)
-                            sandbox._evolvContext.onDeactivate.push(callback);
-                        if (sandbox._evolvContext.state === 'inactive') {
-                            callback();
-                        }
-                    },
-                };
-            } else {
+            let queueName;
+
+            if (
+                !(state === 'active' || state === undefined || state === 'inactive')
+            ) {
                 return {
                     then: () => {
                         warn(
@@ -788,17 +767,90 @@
                         );
                     },
                 };
+            } else if (state === 'active' || undefined) {
+                queueName = 'onActivate';
+            } else {
+                queueName = 'onDeactivate';
             }
+
+            return {
+                then: (callback) => {
+                    const newEntry = () => {
+                        debug(
+                            `whenContext: fire on ${
+                            state === 'inactive' ? 'deactivate' : 'activate'
+                        }`,
+                            callback
+                        );
+                        callback();
+                    };
+
+                    newEntry.callbackString = callback.toString();
+
+                    // Dedupe callbacks
+                    if (
+                        sandbox._evolvContext[queueName].findIndex(
+                            (entry) =>
+                                entry.callbackString === newEntry.callbackString
+                        ) !== -1
+                    ) {
+                        debug(
+                            `whenContext: duplicate callback not assigned to '${state}' state`,
+                            callback
+                        );
+                        return;
+                    }
+
+                    debug(
+                        `whenContext: queue callback for '${state}' state, current state: '${sandbox._evolvContext.state.current}'`,
+                        callback
+                    );
+                    sandbox._evolvContext[queueName].push(newEntry);
+                    if (
+                        state === 'active' &&
+                        sandbox._evolvContext.state.current === 'active'
+                    ) {
+                        newEntry();
+                    } else if (
+                        state === 'inactive' &&
+                        sandbox._evolvContext.state.current === 'inactive'
+                    ) {
+                        newEntry();
+                    }
+                },
+            };
         };
     }
 
-    function initializeWhenInstrument(sandbox) {
-        return () => {
-            sandbox.debug('whenInstrument: add function to instrument queue');
+    function initializeWhenMutate(sandbox) {
+        const debug = sandbox.debug;
 
+        return () => {
             return {
-                then: (func) => {
-                    sandbox.instrument._onInstrument.push(func);
+                then: (callback) => {
+                    const newEntry = () => {
+                        debug(`whenMutate: fire on mutate`, callback);
+                        callback();
+                    };
+
+                    newEntry.callbackString = callback.toString();
+
+                    // Dedupe callbacks
+                    if (
+                        sandbox.instrument._onMutate.findIndex(
+                            (entry) =>
+                                entry.callbackString === newEntry.callbackString
+                        ) !== -1
+                    ) {
+                        debug(
+                            `whenMutate: duplicate callback not assigned to on-mutate queue`,
+                            callback
+                        );
+                        return;
+                    }
+
+                    debug('whenMutate: add callback to on-mutate queue', callback);
+                    sandbox.instrument._onMutate.push(newEntry);
                 },
             };
         };
@@ -1011,7 +1063,7 @@
             initializeInstrument(sandbox);
             sandbox._evolvContext = initializeEvolvContext(sandbox);
             sandbox.whenContext = initializeWhenContext(sandbox);
-            sandbox.whenInstrument = initializeWhenInstrument(sandbox);
+            sandbox.whenMutate = initializeWhenMutate(sandbox);
             sandbox.whenDOM = initializeWhenDOM(sandbox);
             sandbox.whenItem = initializeWhenItem(sandbox);
             sandbox.whenElement = initializeWhenElement(sandbox);

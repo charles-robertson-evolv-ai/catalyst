@@ -18,7 +18,7 @@ function initializeInstrument(sandbox) {
     instrument.queue = {};
     instrument._isProcessing = false;
     instrument._processCount = 0;
-    instrument._onInstrument = [];
+    instrument._onMutate = [];
     instrument._didItemChange = false;
 
     function processQueueItem(key, items, definitions) {
@@ -107,6 +107,8 @@ function initializeInstrument(sandbox) {
             debug('process instrument: item changed, reprocessing');
             instrument.debouncedProcessQueue();
         }
+
+        instrument._onMutate.forEach((callback) => callback());
     };
 
     instrument.debouncedProcessQueue = debounce(() => {

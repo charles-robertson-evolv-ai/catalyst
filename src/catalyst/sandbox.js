@@ -5,7 +5,7 @@ import { initializeInstrument } from './instrument';
 import { initializeEvolvContext } from './evolv-context';
 import {
     initializeWhenContext,
-    initializeWhenInstrument,
+    initializeWhenMutate,
     initializeWhenDOM,
     initializeWhenItem,
     initializeWhenElement,
@@ -54,7 +54,7 @@ function initializeSandbox(name) {
         initializeInstrument(sandbox);
         sandbox._evolvContext = initializeEvolvContext(sandbox);
         sandbox.whenContext = initializeWhenContext(sandbox);
-        sandbox.whenInstrument = initializeWhenInstrument(sandbox);
+        sandbox.whenMutate = initializeWhenMutate(sandbox);
         sandbox.whenDOM = initializeWhenDOM(sandbox);
         sandbox.whenItem = initializeWhenItem(sandbox);
         sandbox.whenElement = initializeWhenElement(sandbox);
