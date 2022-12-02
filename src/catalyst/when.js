@@ -214,7 +214,6 @@ function initializeWaitUntil(sandbox) {
                     startTime: performance.now(),
                 };
                 sandbox._intervalPoll.queue.push(entry);
-                window.evolv.catalyst._intervalPoll.usePolling = true;
                 window.evolv.catalyst._intervalPoll.startPolling();
             },
         };

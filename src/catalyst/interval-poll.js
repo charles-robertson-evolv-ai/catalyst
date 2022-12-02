@@ -51,10 +51,10 @@ function initializeIntervalPoll(catalyst) {
 
                 if (!anySandboxActive) {
                     catalyst.debug('interval poll: no active sandboxes');
-                    resolve(false);
+                    return resolve(false);
                 } else if (queueTotal === 0) {
                     catalyst.debug('interval poll: all queues empty');
-                    resolve(false);
+                    return resolve(false);
                 } else {
                     requestAnimationFrame(processQueuesLoop);
                 }
@@ -65,7 +65,6 @@ function initializeIntervalPoll(catalyst) {
 
     return {
         isPolling: false,
-        usePolling: false,
         startPolling: async function () {
             const intervalPoll = catalyst._intervalPoll;
             if (intervalPoll.isPolling) return;

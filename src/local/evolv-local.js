@@ -36,15 +36,17 @@ function extendRule(rule) {
     };
 }
 
-if (this && this.key) {
-    rule.key = this.key;
-} else {
-    rule.isActive = () => {
-        return window.location.href.includes(
-            'https://www.verizon.com/sales/next/expresscheckout.html'
-        );
-    };
-}
+// if (this && this.key) {
+//     rule.key = this.key;
+// } else {
+//     rule.isActive = () => {
+//         return window.location.href.includes(
+//             'https://www.verizon.com/sales/next/expresscheckout.html'
+//         );
+//     };
+// }
+
+rule.key = 'xhs2';
 
 function instrumentPage() {
     store.instrumentDOM({

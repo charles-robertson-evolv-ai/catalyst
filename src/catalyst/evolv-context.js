@@ -2,6 +2,7 @@ import { $ } from './enode';
 
 function initializeEvolvContext(sandbox) {
     const debug = sandbox.debug;
+    const warn = sandbox.warn;
 
     // Backward compatibility
     sandbox.track = function (txt) {
@@ -21,25 +22,9 @@ function initializeEvolvContext(sandbox) {
             window.evolv.catalyst._intervalPoll.startPolling,
         ],
         onDeactivate: [() => debug(`deactivate context: ${sandbox.name}`)],
-        initializeActiveKeyListener: (contextId) => {
+        initializeActiveKeyListener: (value) => {
             debug('init active key listener: waiting for window.evolv.client');
-            sandbox
-                .waitUntil(
-                    () =>
-                        window.evolv &&
-                        window.evolv.client &&
-                        window.evolv.client.getActiveKeys
-                )
-                .then(() => {
-                    window.evolv.client
-                        .getActiveKeys('web.' + contextId)
-                        .listen((keys) => {
-                            debug('active key listener:', keys);
-                            // if (keys)
-                        });
-                });
-        },
-        initializeIsActiveListener: (isActive) => {
+
             sandbox
                 .waitUntil(
                     () =>
@@ -49,6 +34,17 @@ function initializeEvolvContext(sandbox) {
                 )
                 .then(() => {
                     window.evolv.client.getActiveKeys().listen((keys) => {
+                        let isActive;
+
+                        if (typeof value === 'string')
+                            isActive = () => keys.current.length > 0;
+                        else if (typeof value === 'function') isActive = value;
+                        else
+                            warn(
+                                'init active key listener: requires context id string or isActive function, invalid input',
+                                value
+                            );
+
                         sandbox._evolvContext.state.previous =
                             sandbox._evolvContext.state.current;
                         sandbox._evolvContext.state.current = isActive()
@@ -79,43 +75,6 @@ function initializeEvolvContext(sandbox) {
                 });
         },
     };
-    // sandbox._evolvContext = {};
-    // const evolvContext = sandbox._evolvContext;
-
-    // evolvContext.updateState = () => {
-    //     // Defaults the Evolv context state to active so you can run an experiment
-    //     // even without the benefit of SPA handling.
-    //     if (!sandbox.id && !sandbox.isActive) {
-    //         evolvContext.state = 'active';
-    //         return 'active';
-    //     }
-
-    //     if (sandbox.id) {
-    //         evolvContext.state = document.documentElement.classList.contains(
-    //             'evolv_web_' + sandbox.id
-    //         )
-    //             ? 'active'
-    //             : 'inactive';
-    //     } else if (sandbox.isActive) {
-    //         // Deprecated
-    //         evolvContext.state = sandbox.isActive() ? 'active' : 'inactive';
-    //     }
-
-    //     return evolvContext.state;
-    // };
-
-    // evolvContext.updateState();
-    // evolvContext.onActivate = [
-    //     () =>
-    //         debug(
-    //             `evolv context: ${sandbox.name} activate, ${(
-    //                 performance.now() - sandbox.perf
-    //             ).toFixed(2)}ms`
-    //         ),
-    // ];
-    // evolvContext.onDeactivate = [
-    //     () => debug(`evolv context: ${sandbox.name} deactivate`),
-    // ];
 }
 
 export { initializeEvolvContext };

@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    var version = "0.1.21";
+    var version = "0.1.22";
 
     const environmentLogDefaults = {
         // VCG
@@ -674,6 +674,7 @@
 
     function initializeEvolvContext(sandbox) {
         const debug = sandbox.debug;
+        const warn = sandbox.warn;
 
         // Backward compatibility
         sandbox.track = function (txt) {
@@ -693,25 +694,9 @@
                 window.evolv.catalyst._intervalPoll.startPolling,
             ],
             onDeactivate: [() => debug(`deactivate context: ${sandbox.name}`)],
-            initializeActiveKeyListener: (contextId) => {
+            initializeActiveKeyListener: (value) => {
                 debug('init active key listener: waiting for window.evolv.client');
-                sandbox
-                    .waitUntil(
-                        () =>
-                            window.evolv &&
-                            window.evolv.client &&
-                            window.evolv.client.getActiveKeys
-                    )
-                    .then(() => {
-                        window.evolv.client
-                            .getActiveKeys('web.' + contextId)
-                            .listen((keys) => {
-                                debug('active key listener:', keys);
-                                // if (keys)
-                            });
-                    });
-            },
-            initializeIsActiveListener: (isActive) => {
+
                 sandbox
                     .waitUntil(
                         () =>
@@ -721,6 +706,17 @@
                     )
                     .then(() => {
                         window.evolv.client.getActiveKeys().listen((keys) => {
+                            let isActive;
+
+                            if (typeof value === 'string')
+                                isActive = () => keys.current.length > 0;
+                            else if (typeof value === 'function') isActive = value;
+                            else
+                                warn(
+                                    'init active key listener: requires context id string or isActive function, invalid input',
+                                    value
+                                );
+
                             sandbox._evolvContext.state.previous =
                                 sandbox._evolvContext.state.current;
                             sandbox._evolvContext.state.current = isActive()
@@ -751,43 +747,6 @@
                     });
             },
         };
-        // sandbox._evolvContext = {};
-        // const evolvContext = sandbox._evolvContext;
-
-        // evolvContext.updateState = () => {
-        //     // Defaults the Evolv context state to active so you can run an experiment
-        //     // even without the benefit of SPA handling.
-        //     if (!sandbox.id && !sandbox.isActive) {
-        //         evolvContext.state = 'active';
-        //         return 'active';
-        //     }
-
-        //     if (sandbox.id) {
-        //         evolvContext.state = document.documentElement.classList.contains(
-        //             'evolv_web_' + sandbox.id
-        //         )
-        //             ? 'active'
-        //             : 'inactive';
-        //     } else if (sandbox.isActive) {
-        //         // Deprecated
-        //         evolvContext.state = sandbox.isActive() ? 'active' : 'inactive';
-        //     }
-
-        //     return evolvContext.state;
-        // };
-
-        // evolvContext.updateState();
-        // evolvContext.onActivate = [
-        //     () =>
-        //         debug(
-        //             `evolv context: ${sandbox.name} activate, ${(
-        //                 performance.now() - sandbox.perf
-        //             ).toFixed(2)}ms`
-        //         ),
-        // ];
-        // evolvContext.onDeactivate = [
-        //     () => debug(`evolv context: ${sandbox.name} deactivate`),
-        // ];
     }
 
     function initializeWhenContext(sandbox) {
@@ -1004,7 +963,6 @@
                         startTime: performance.now(),
                     };
                     sandbox._intervalPoll.queue.push(entry);
-                    window.evolv.catalyst._intervalPoll.usePolling = true;
                     window.evolv.catalyst._intervalPoll.startPolling();
                 },
             };
@@ -1016,14 +974,17 @@
         sandbox.name = name;
 
         initializeLogs(sandbox);
+        const log = sandbox.log;
         const debug = sandbox.debug;
         const warn = sandbox.warn;
         if (name === 'catalyst') {
-            debug(`init catalyst version ${version}`);
-            debug(`log level: ${sandbox.logs}`);
+            log(`init catalyst version ${version}`);
+            log(`log level: ${sandbox.logs}`);
             sandbox.version = version;
         } else {
             debug(`init context sandbox: ${name}`);
+            if (window.evolv.catalyst._globalObserver.state === 'inactive')
+                window.evolv.catalyst._globalObserver.connect();
         }
 
         sandbox.$ = $;
@@ -1036,7 +997,6 @@
                 }
                 return $();
             } else if (!item.enode.isConnected()) {
-                // warn(`$$: Item ${name} is not currently on the page.`);
                 return $();
             }
 
@@ -1044,25 +1004,22 @@
         };
         sandbox.select = select;
         sandbox.selectAll = selectAll;
-
-        sandbox.$$;
-
         sandbox.store = {};
         sandbox.app = {};
 
-        initializeInstrument(sandbox);
-        if (sandbox.name !== 'catalyst')
+        if (sandbox.name !== 'catalyst') {
+            initializeInstrument(sandbox);
             sandbox._evolvContext = initializeEvolvContext(sandbox);
-
-        sandbox.whenContext = initializeWhenContext(sandbox);
-        sandbox.whenInstrument = initializeWhenInstrument(sandbox);
-        sandbox.whenDOM = initializeWhenDOM(sandbox);
-        sandbox.whenItem = initializeWhenItem(sandbox);
-        sandbox.whenElement = initializeWhenElement(sandbox);
-        sandbox.waitUntil = initializeWaitUntil(sandbox);
+            sandbox.whenContext = initializeWhenContext(sandbox);
+            sandbox.whenInstrument = initializeWhenInstrument(sandbox);
+            sandbox.whenDOM = initializeWhenDOM(sandbox);
+            sandbox.whenItem = initializeWhenItem(sandbox);
+            sandbox.whenElement = initializeWhenElement(sandbox);
+            sandbox.waitUntil = initializeWaitUntil(sandbox);
+        }
 
         // Backwards compatibility
-        sandbox.reactivate = sandbox.instrument.processQueue;
+        sandbox.reactivate = () => {};
 
         return sandbox;
     }
@@ -1120,10 +1077,10 @@
 
                     if (!anySandboxActive) {
                         catalyst.debug('interval poll: no active sandboxes');
-                        resolve(false);
+                        return resolve(false);
                     } else if (queueTotal === 0) {
                         catalyst.debug('interval poll: all queues empty');
-                        resolve(false);
+                        return resolve(false);
                     } else {
                         requestAnimationFrame(processQueuesLoop);
                     }
@@ -1134,7 +1091,6 @@
 
         return {
             isPolling: false,
-            usePolling: false,
             startPolling: async function () {
                 const intervalPoll = catalyst._intervalPoll;
                 if (intervalPoll.isPolling) return;
@@ -1159,20 +1115,25 @@
                 let catalystReflection = Reflect.get(target, name, receiver);
                 if (!catalystReflection) {
                     const sandbox = initializeSandbox(name);
+                    let hasInitializedActiveKeyListener = false;
 
-                    // Updates the context state to enable SPA handling if either
-                    // property is set. isActive() is deprecated.
+                    // Automatically initializes the active key listener for SPA handling if either
+                    // property is set. Only permitted to run once. isActive() is deprecated.
                     const sandboxProxy = new Proxy(sandbox, {
                         set(target, property, value) {
                             target[property] = value;
 
-                            if (property === 'key') {
+                            if (
+                                !hasInitializedActiveKeyListener &&
+                                (property === 'key' || property === 'isActive')
+                            ) {
                                 sandbox._evolvContext.initializeActiveKeyListener(
                                     value
                                 );
-                            } else if (property === 'isActive') {
-                                sandbox._evolvContext.initializeIsActiveListener(
-                                    value
+                                hasInitializedActiveKeyListener = true;
+                            } else {
+                                sandbox.debug(
+                                    'init sandbox: active key listener already initialized'
                                 );
                             }
 
@@ -1205,32 +1166,9 @@
 
         catalyst._intervalPoll = initializeIntervalPoll(catalyst);
 
-        // SPA mutation observer for all sandboxes
-        // debug('init evolv context observer: watching html');
-        // new MutationObserver(() => {
-        //     catalyst.log(
-        //         'SPA:',
-        //         Array.from(document.documentElement.classList).join(', ')
-        //     );
-        //     catalyst.sandboxes.forEach((sandbox) => {
-        //         const oldState = sandbox._evolvContext.state;
-        //         const newState = sandbox._evolvContext.updateState();
-        //         if (
-        //             (oldState === 'inactive' || oldState === undefined) &&
-        //             newState === 'active'
-        //         ) {
-        //             sandbox._evolvContext.onActivate.forEach((func) => func());
-        //         } else if (oldState === 'active' && newState === 'inactive') {
-        //             sandbox._evolvContext.onDeactivate.forEach((func) => func());
-        //         }
-        //     });
-        // }).observe(document.documentElement, {
-        //     attributes: true,
-        //     attributeFilter: ['class'],
-        // });
-
         // The main mutation observer for all sandboxes
         debug('global observer: init');
+
         catalyst._globalObserver = {
             observer: new MutationObserver(() => {
                 let anySandboxActive = false;
@@ -1240,8 +1178,10 @@
                     anySandboxActive = true;
                     sandbox.instrument.debouncedProcessQueue();
                 }
-
-                if (!anySandboxActive) catalyst._globalObserver.disconnect();
+                if (!anySandboxActive) {
+                    debug('global observer: no sandboxes active');
+                    catalyst._globalObserver.disconnect();
+                }
             }),
             connect: () => {
                 debug('global observer: observe');
@@ -1250,10 +1190,12 @@
                     attributes: true,
                     subtree: true,
                 });
+                catalyst._globalObserver.state = 'active';
             },
             disconnect: () => {
                 debug('global observer: disconnect');
                 catalyst._globalObserver.observer.disconnect();
+                catalyst._globalObserver.state = 'inactive';
             },
         };
 
@@ -1262,13 +1204,13 @@
         return catalystProxy;
     }
 
-    function pageMatch(page) {
-        if (!page) return false;
-
-        return new RegExp(page).test(location.pathname);
-    }
-
     function processConfig(config) {
+        function pageMatch(page) {
+            if (!page) return false;
+
+            return new RegExp(page).test(location.pathname);
+        }
+
         window.evolv = window.evolv || {};
         var pages = config && config.pages ? config.pages : ['.*'];
         var matches = pages.some(pageMatch);

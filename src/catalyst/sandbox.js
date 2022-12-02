@@ -17,14 +17,17 @@ function initializeSandbox(name) {
     sandbox.name = name;
 
     initializeLogs(sandbox);
+    const log = sandbox.log;
     const debug = sandbox.debug;
     const warn = sandbox.warn;
     if (name === 'catalyst') {
-        debug(`init catalyst version ${version}`);
-        debug(`log level: ${sandbox.logs}`);
+        log(`init catalyst version ${version}`);
+        log(`log level: ${sandbox.logs}`);
         sandbox.version = version;
     } else {
         debug(`init context sandbox: ${name}`);
+        if (window.evolv.catalyst._globalObserver.state === 'inactive')
+            window.evolv.catalyst._globalObserver.connect();
     }
 
     sandbox.$ = $;
@@ -37,7 +40,6 @@ function initializeSandbox(name) {
             }
             return $();
         } else if (!item.enode.isConnected()) {
-            // warn(`$$: Item ${name} is not currently on the page.`);
             return $();
         }
 
@@ -45,25 +47,22 @@ function initializeSandbox(name) {
     };
     sandbox.select = select;
     sandbox.selectAll = selectAll;
-
-    const $$ = sandbox.$$;
-
     sandbox.store = {};
     sandbox.app = {};
 
-    initializeInstrument(sandbox);
-    if (sandbox.name !== 'catalyst')
+    if (sandbox.name !== 'catalyst') {
+        initializeInstrument(sandbox);
         sandbox._evolvContext = initializeEvolvContext(sandbox);
-
-    sandbox.whenContext = initializeWhenContext(sandbox);
-    sandbox.whenInstrument = initializeWhenInstrument(sandbox);
-    sandbox.whenDOM = initializeWhenDOM(sandbox);
-    sandbox.whenItem = initializeWhenItem(sandbox);
-    sandbox.whenElement = initializeWhenElement(sandbox);
-    sandbox.waitUntil = initializeWaitUntil(sandbox);
+        sandbox.whenContext = initializeWhenContext(sandbox);
+        sandbox.whenInstrument = initializeWhenInstrument(sandbox);
+        sandbox.whenDOM = initializeWhenDOM(sandbox);
+        sandbox.whenItem = initializeWhenItem(sandbox);
+        sandbox.whenElement = initializeWhenElement(sandbox);
+        sandbox.waitUntil = initializeWaitUntil(sandbox);
+    }
 
     // Backwards compatibility
-    sandbox.reactivate = sandbox.instrument.processQueue;
+    sandbox.reactivate = () => {};
 
     return sandbox;
 }

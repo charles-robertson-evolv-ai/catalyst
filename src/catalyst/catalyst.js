@@ -14,20 +14,25 @@ export function initializeCatalyst() {
             let catalystReflection = Reflect.get(target, name, receiver);
             if (!catalystReflection) {
                 const sandbox = initializeSandbox(name);
+                let hasInitializedActiveKeyListener = false;
 
-                // Updates the context state to enable SPA handling if either
-                // property is set. isActive() is deprecated.
+                // Automatically initializes the active key listener for SPA handling if either
+                // property is set. Only permitted to run once. isActive() is deprecated.
                 const sandboxProxy = new Proxy(sandbox, {
                     set(target, property, value) {
                         target[property] = value;
 
-                        if (property === 'key') {
+                        if (
+                            !hasInitializedActiveKeyListener &&
+                            (property === 'key' || property === 'isActive')
+                        ) {
                             sandbox._evolvContext.initializeActiveKeyListener(
                                 value
                             );
-                        } else if (property === 'isActive') {
-                            sandbox._evolvContext.initializeIsActiveListener(
-                                value
+                            hasInitializedActiveKeyListener = true;
+                        } else {
+                            sandbox.debug(
+                                'init sandbox: active key listener already initialized'
                             );
                         }
 
@@ -60,32 +65,9 @@ export function initializeCatalyst() {
 
     catalyst._intervalPoll = initializeIntervalPoll(catalyst);
 
-    // SPA mutation observer for all sandboxes
-    // debug('init evolv context observer: watching html');
-    // new MutationObserver(() => {
-    //     catalyst.log(
-    //         'SPA:',
-    //         Array.from(document.documentElement.classList).join(', ')
-    //     );
-    //     catalyst.sandboxes.forEach((sandbox) => {
-    //         const oldState = sandbox._evolvContext.state;
-    //         const newState = sandbox._evolvContext.updateState();
-    //         if (
-    //             (oldState === 'inactive' || oldState === undefined) &&
-    //             newState === 'active'
-    //         ) {
-    //             sandbox._evolvContext.onActivate.forEach((func) => func());
-    //         } else if (oldState === 'active' && newState === 'inactive') {
-    //             sandbox._evolvContext.onDeactivate.forEach((func) => func());
-    //         }
-    //     });
-    // }).observe(document.documentElement, {
-    //     attributes: true,
-    //     attributeFilter: ['class'],
-    // });
-
     // The main mutation observer for all sandboxes
     debug('global observer: init');
+
     catalyst._globalObserver = {
         observer: new MutationObserver(() => {
             let anySandboxActive = false;
@@ -95,8 +77,10 @@ export function initializeCatalyst() {
                 anySandboxActive = true;
                 sandbox.instrument.debouncedProcessQueue();
             }
-
-            if (!anySandboxActive) catalyst._globalObserver.disconnect();
+            if (!anySandboxActive) {
+                debug('global observer: no sandboxes active');
+                catalyst._globalObserver.disconnect();
+            }
         }),
         connect: () => {
             debug('global observer: observe');
@@ -105,10 +89,12 @@ export function initializeCatalyst() {
                 attributes: true,
                 subtree: true,
             });
+            catalyst._globalObserver.state = 'active';
         },
         disconnect: () => {
             debug('global observer: disconnect');
             catalyst._globalObserver.observer.disconnect();
+            catalyst._globalObserver.state = 'inactive';
         },
     };
 
@@ -117,13 +103,13 @@ export function initializeCatalyst() {
     return catalystProxy;
 }
 
-function pageMatch(page) {
-    if (!page) return false;
-
-    return new RegExp(page).test(location.pathname);
-}
-
 export function processConfig(config) {
+    function pageMatch(page) {
+        if (!page) return false;
+
+        return new RegExp(page).test(location.pathname);
+    }
+
     window.evolv = window.evolv || {};
     var pages = config && config.pages ? config.pages : ['.*'];
     var matches = pages.some(pageMatch);
