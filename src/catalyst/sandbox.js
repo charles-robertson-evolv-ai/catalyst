@@ -31,13 +31,11 @@ function initializeSandbox(name) {
     }
 
     sandbox.$ = $;
-    sandbox.$$ = (name) => {
-        const item = sandbox.instrument.queue[name];
+    sandbox.$$ = (key) => {
+        const item = sandbox.instrument.queue[key];
 
         if (!item) {
-            if (!sandbox.instrument.findDefinition(name)) {
-                warn(`$$: '${name}' not found in instrument definitions list`);
-            }
+            warn(`$$: '${key}' not found in instrument queue`);
             return $();
         } else if (!item.enode.isConnected()) {
             return $();
@@ -51,7 +49,7 @@ function initializeSandbox(name) {
     sandbox.app = {};
 
     if (sandbox.name !== 'catalyst') {
-        initializeInstrument(sandbox);
+        sandbox.instrument = initializeInstrument(sandbox);
         sandbox._evolvContext = initializeEvolvContext(sandbox);
         sandbox.whenContext = initializeWhenContext(sandbox);
         sandbox.whenMutate = initializeWhenMutate(sandbox);

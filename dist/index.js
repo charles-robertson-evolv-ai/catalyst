@@ -1,18 +1,18 @@
 function _regeneratorRuntime() { "use strict"; /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/facebook/regenerator/blob/main/LICENSE */ _regeneratorRuntime = function _regeneratorRuntime() { return exports; }; var exports = {}, Op = Object.prototype, hasOwn = Op.hasOwnProperty, defineProperty = Object.defineProperty || function (obj, key, desc) { obj[key] = desc.value; }, $Symbol = "function" == typeof Symbol ? Symbol : {}, iteratorSymbol = $Symbol.iterator || "@@iterator", asyncIteratorSymbol = $Symbol.asyncIterator || "@@asyncIterator", toStringTagSymbol = $Symbol.toStringTag || "@@toStringTag"; function define(obj, key, value) { return Object.defineProperty(obj, key, { value: value, enumerable: !0, configurable: !0, writable: !0 }), obj[key]; } try { define({}, ""); } catch (err) { define = function define(obj, key, value) { return obj[key] = value; }; } function wrap(innerFn, outerFn, self, tryLocsList) { var protoGenerator = outerFn && outerFn.prototype instanceof Generator ? outerFn : Generator, generator = Object.create(protoGenerator.prototype), context = new Context(tryLocsList || []); return defineProperty(generator, "_invoke", { value: makeInvokeMethod(innerFn, self, context) }), generator; } function tryCatch(fn, obj, arg) { try { return { type: "normal", arg: fn.call(obj, arg) }; } catch (err) { return { type: "throw", arg: err }; } } exports.wrap = wrap; var ContinueSentinel = {}; function Generator() {} function GeneratorFunction() {} function GeneratorFunctionPrototype() {} var IteratorPrototype = {}; define(IteratorPrototype, iteratorSymbol, function () { return this; }); var getProto = Object.getPrototypeOf, NativeIteratorPrototype = getProto && getProto(getProto(values([]))); NativeIteratorPrototype && NativeIteratorPrototype !== Op && hasOwn.call(NativeIteratorPrototype, iteratorSymbol) && (IteratorPrototype = NativeIteratorPrototype); var Gp = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(IteratorPrototype); function defineIteratorMethods(prototype) { ["next", "throw", "return"].forEach(function (method) { define(prototype, method, function (arg) { return this._invoke(method, arg); }); }); } function AsyncIterator(generator, PromiseImpl) { function invoke(method, arg, resolve, reject) { var record = tryCatch(generator[method], generator, arg); if ("throw" !== record.type) { var result = record.arg, value = result.value; return value && "object" == _typeof(value) && hasOwn.call(value, "__await") ? PromiseImpl.resolve(value.__await).then(function (value) { invoke("next", value, resolve, reject); }, function (err) { invoke("throw", err, resolve, reject); }) : PromiseImpl.resolve(value).then(function (unwrapped) { result.value = unwrapped, resolve(result); }, function (error) { return invoke("throw", error, resolve, reject); }); } reject(record.arg); } var previousPromise; defineProperty(this, "_invoke", { value: function value(method, arg) { function callInvokeWithMethodAndArg() { return new PromiseImpl(function (resolve, reject) { invoke(method, arg, resolve, reject); }); } return previousPromise = previousPromise ? previousPromise.then(callInvokeWithMethodAndArg, callInvokeWithMethodAndArg) : callInvokeWithMethodAndArg(); } }); } function makeInvokeMethod(innerFn, self, context) { var state = "suspendedStart"; return function (method, arg) { if ("executing" === state) throw new Error("Generator is already running"); if ("completed" === state) { if ("throw" === method) throw arg; return doneResult(); } for (context.method = method, context.arg = arg;;) { var delegate = context.delegate; if (delegate) { var delegateResult = maybeInvokeDelegate(delegate, context); if (delegateResult) { if (delegateResult === ContinueSentinel) continue; return delegateResult; } } if ("next" === context.method) context.sent = context._sent = context.arg;else if ("throw" === context.method) { if ("suspendedStart" === state) throw state = "completed", context.arg; context.dispatchException(context.arg); } else "return" === context.method && context.abrupt("return", context.arg); state = "executing"; var record = tryCatch(innerFn, self, context); if ("normal" === record.type) { if (state = context.done ? "completed" : "suspendedYield", record.arg === ContinueSentinel) continue; return { value: record.arg, done: context.done }; } "throw" === record.type && (state = "completed", context.method = "throw", context.arg = record.arg); } }; } function maybeInvokeDelegate(delegate, context) { var methodName = context.method, method = delegate.iterator[methodName]; if (undefined === method) return context.delegate = null, "throw" === methodName && delegate.iterator["return"] && (context.method = "return", context.arg = undefined, maybeInvokeDelegate(delegate, context), "throw" === context.method) || "return" !== methodName && (context.method = "throw", context.arg = new TypeError("The iterator does not provide a '" + methodName + "' method")), ContinueSentinel; var record = tryCatch(method, delegate.iterator, context.arg); if ("throw" === record.type) return context.method = "throw", context.arg = record.arg, context.delegate = null, ContinueSentinel; var info = record.arg; return info ? info.done ? (context[delegate.resultName] = info.value, context.next = delegate.nextLoc, "return" !== context.method && (context.method = "next", context.arg = undefined), context.delegate = null, ContinueSentinel) : info : (context.method = "throw", context.arg = new TypeError("iterator result is not an object"), context.delegate = null, ContinueSentinel); } function pushTryEntry(locs) { var entry = { tryLoc: locs[0] }; 1 in locs && (entry.catchLoc = locs[1]), 2 in locs && (entry.finallyLoc = locs[2], entry.afterLoc = locs[3]), this.tryEntries.push(entry); } function resetTryEntry(entry) { var record = entry.completion || {}; record.type = "normal", delete record.arg, entry.completion = record; } function Context(tryLocsList) { this.tryEntries = [{ tryLoc: "root" }], tryLocsList.forEach(pushTryEntry, this), this.reset(!0); } function values(iterable) { if (iterable) { var iteratorMethod = iterable[iteratorSymbol]; if (iteratorMethod) return iteratorMethod.call(iterable); if ("function" == typeof iterable.next) return iterable; if (!isNaN(iterable.length)) { var i = -1, next = function next() { for (; ++i < iterable.length;) { if (hasOwn.call(iterable, i)) return next.value = iterable[i], next.done = !1, next; } return next.value = undefined, next.done = !0, next; }; return next.next = next; } } return { next: doneResult }; } function doneResult() { return { value: undefined, done: !0 }; } return GeneratorFunction.prototype = GeneratorFunctionPrototype, defineProperty(Gp, "constructor", { value: GeneratorFunctionPrototype, configurable: !0 }), defineProperty(GeneratorFunctionPrototype, "constructor", { value: GeneratorFunction, configurable: !0 }), GeneratorFunction.displayName = define(GeneratorFunctionPrototype, toStringTagSymbol, "GeneratorFunction"), exports.isGeneratorFunction = function (genFun) { var ctor = "function" == typeof genFun && genFun.constructor; return !!ctor && (ctor === GeneratorFunction || "GeneratorFunction" === (ctor.displayName || ctor.name)); }, exports.mark = function (genFun) { return Object.setPrototypeOf ? Object.setPrototypeOf(genFun, GeneratorFunctionPrototype) : (genFun.__proto__ = GeneratorFunctionPrototype, define(genFun, toStringTagSymbol, "GeneratorFunction")), genFun.prototype = Object.create(Gp), genFun; }, exports.awrap = function (arg) { return { __await: arg }; }, defineIteratorMethods(AsyncIterator.prototype), define(AsyncIterator.prototype, asyncIteratorSymbol, function () { return this; }), exports.AsyncIterator = AsyncIterator, exports.async = function (innerFn, outerFn, self, tryLocsList, PromiseImpl) { void 0 === PromiseImpl && (PromiseImpl = Promise); var iter = new AsyncIterator(wrap(innerFn, outerFn, self, tryLocsList), PromiseImpl); return exports.isGeneratorFunction(outerFn) ? iter : iter.next().then(function (result) { return result.done ? result.value : iter.next(); }); }, defineIteratorMethods(Gp), define(Gp, toStringTagSymbol, "Generator"), define(Gp, iteratorSymbol, function () { return this; }), define(Gp, "toString", function () { return "[object Generator]"; }), exports.keys = function (val) { var object = Object(val), keys = []; for (var key in object) { keys.push(key); } return keys.reverse(), function next() { for (; keys.length;) { var key = keys.pop(); if (key in object) return next.value = key, next.done = !1, next; } return next.done = !0, next; }; }, exports.values = values, Context.prototype = { constructor: Context, reset: function reset(skipTempReset) { if (this.prev = 0, this.next = 0, this.sent = this._sent = undefined, this.done = !1, this.delegate = null, this.method = "next", this.arg = undefined, this.tryEntries.forEach(resetTryEntry), !skipTempReset) for (var name in this) { "t" === name.charAt(0) && hasOwn.call(this, name) && !isNaN(+name.slice(1)) && (this[name] = undefined); } }, stop: function stop() { this.done = !0; var rootRecord = this.tryEntries[0].completion; if ("throw" === rootRecord.type) throw rootRecord.arg; return this.rval; }, dispatchException: function dispatchException(exception) { if (this.done) throw exception; var context = this; function handle(loc, caught) { return record.type = "throw", record.arg = exception, context.next = loc, caught && (context.method = "next", context.arg = undefined), !!caught; } for (var i = this.tryEntries.length - 1; i >= 0; --i) { var entry = this.tryEntries[i], record = entry.completion; if ("root" === entry.tryLoc) return handle("end"); if (entry.tryLoc <= this.prev) { var hasCatch = hasOwn.call(entry, "catchLoc"), hasFinally = hasOwn.call(entry, "finallyLoc"); if (hasCatch && hasFinally) { if (this.prev < entry.catchLoc) return handle(entry.catchLoc, !0); if (this.prev < entry.finallyLoc) return handle(entry.finallyLoc); } else if (hasCatch) { if (this.prev < entry.catchLoc) return handle(entry.catchLoc, !0); } else { if (!hasFinally) throw new Error("try statement without catch or finally"); if (this.prev < entry.finallyLoc) return handle(entry.finallyLoc); } } } }, abrupt: function abrupt(type, arg) { for (var i = this.tryEntries.length - 1; i >= 0; --i) { var entry = this.tryEntries[i]; if (entry.tryLoc <= this.prev && hasOwn.call(entry, "finallyLoc") && this.prev < entry.finallyLoc) { var finallyEntry = entry; break; } } finallyEntry && ("break" === type || "continue" === type) && finallyEntry.tryLoc <= arg && arg <= finallyEntry.finallyLoc && (finallyEntry = null); var record = finallyEntry ? finallyEntry.completion : {}; return record.type = type, record.arg = arg, finallyEntry ? (this.method = "next", this.next = finallyEntry.finallyLoc, ContinueSentinel) : this.complete(record); }, complete: function complete(record, afterLoc) { if ("throw" === record.type) throw record.arg; return "break" === record.type || "continue" === record.type ? this.next = record.arg : "return" === record.type ? (this.rval = this.arg = record.arg, this.method = "return", this.next = "end") : "normal" === record.type && afterLoc && (this.next = afterLoc), ContinueSentinel; }, finish: function finish(finallyLoc) { for (var i = this.tryEntries.length - 1; i >= 0; --i) { var entry = this.tryEntries[i]; if (entry.finallyLoc === finallyLoc) return this.complete(entry.completion, entry.afterLoc), resetTryEntry(entry), ContinueSentinel; } }, "catch": function _catch(tryLoc) { for (var i = this.tryEntries.length - 1; i >= 0; --i) { var entry = this.tryEntries[i]; if (entry.tryLoc === tryLoc) { var record = entry.completion; if ("throw" === record.type) { var thrown = record.arg; resetTryEntry(entry); } return thrown; } } throw new Error("illegal catch attempt"); }, delegateYield: function delegateYield(iterable, resultName, nextLoc) { return this.delegate = { iterator: values(iterable), resultName: resultName, nextLoc: nextLoc }, "next" === this.method && (this.arg = undefined), ContinueSentinel; } }, exports; }
 function asyncGeneratorStep(gen, resolve, reject, _next, _throw, key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { Promise.resolve(value).then(_next, _throw); } }
 function _asyncToGenerator(fn) { return function () { var self = this, args = arguments; return new Promise(function (resolve, reject) { var gen = fn.apply(self, args); function _next(value) { asyncGeneratorStep(gen, resolve, reject, _next, _throw, "next", value); } function _throw(err) { asyncGeneratorStep(gen, resolve, reject, _next, _throw, "throw", err); } _next(undefined); }); }; }
-function _createForOfIteratorHelper(o, allowArrayLike) { var it = typeof Symbol !== "undefined" && o[Symbol.iterator] || o["@@iterator"]; if (!it) { if (Array.isArray(o) || (it = _unsupportedIterableToArray(o)) || allowArrayLike && o && typeof o.length === "number") { if (it) o = it; var i = 0; var F = function F() {}; return { s: F, n: function n() { if (i >= o.length) return { done: true }; return { done: false, value: o[i++] }; }, e: function e(_e) { throw _e; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var normalCompletion = true, didErr = false, err; return { s: function s() { it = it.call(o); }, n: function n() { var step = it.next(); normalCompletion = step.done; return step; }, e: function e(_e2) { didErr = true; err = _e2; }, f: function f() { try { if (!normalCompletion && it["return"] != null) it["return"](); } finally { if (didErr) throw err; } } }; }
 function _typeof(obj) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (obj) { return typeof obj; } : function (obj) { return obj && "function" == typeof Symbol && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }, _typeof(obj); }
 function _defineProperty(obj, key, value) { key = _toPropertyKey(key); if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 function _toPropertyKey(arg) { var key = _toPrimitive(arg, "string"); return _typeof(key) === "symbol" ? key : String(key); }
 function _toPrimitive(input, hint) { if (_typeof(input) !== "object" || input === null) return input; var prim = input[Symbol.toPrimitive]; if (prim !== undefined) { var res = prim.call(input, hint || "default"); if (_typeof(res) !== "object") return res; throw new TypeError("@@toPrimitive must return a primitive value."); } return (hint === "string" ? String : Number)(input); }
 function _toConsumableArray(arr) { return _arrayWithoutHoles(arr) || _iterableToArray(arr) || _unsupportedIterableToArray(arr) || _nonIterableSpread(); }
 function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
-function _unsupportedIterableToArray(o, minLen) { if (!o) return; if (typeof o === "string") return _arrayLikeToArray(o, minLen); var n = Object.prototype.toString.call(o).slice(8, -1); if (n === "Object" && o.constructor) n = o.constructor.name; if (n === "Map" || n === "Set") return Array.from(o); if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _arrayLikeToArray(o, minLen); }
 function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) return Array.from(iter); }
 function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) return _arrayLikeToArray(arr); }
+function _createForOfIteratorHelper(o, allowArrayLike) { var it = typeof Symbol !== "undefined" && o[Symbol.iterator] || o["@@iterator"]; if (!it) { if (Array.isArray(o) || (it = _unsupportedIterableToArray(o)) || allowArrayLike && o && typeof o.length === "number") { if (it) o = it; var i = 0; var F = function F() {}; return { s: F, n: function n() { if (i >= o.length) return { done: true }; return { done: false, value: o[i++] }; }, e: function e(_e) { throw _e; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var normalCompletion = true, didErr = false, err; return { s: function s() { it = it.call(o); }, n: function n() { var step = it.next(); normalCompletion = step.done; return step; }, e: function e(_e2) { didErr = true; err = _e2; }, f: function f() { try { if (!normalCompletion && it["return"] != null) it["return"](); } finally { if (didErr) throw err; } } }; }
+function _unsupportedIterableToArray(o, minLen) { if (!o) return; if (typeof o === "string") return _arrayLikeToArray(o, minLen); var n = Object.prototype.toString.call(o).slice(8, -1); if (n === "Object" && o.constructor) n = o.constructor.name; if (n === "Map" || n === "Set") return Array.from(o); if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _arrayLikeToArray(o, minLen); }
 function _arrayLikeToArray(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) { arr2[i] = arr[i]; } return arr2; }
-var version = "0.1.22";
+var version = "0.1.23";
 var environmentLogDefaults = {
   // VCG
   b02d16aa80: 'silent',
@@ -425,36 +425,20 @@ function debounce(func) {
 function initializeInstrument(sandbox) {
   var debug = sandbox.debug;
   var warn = sandbox.warn;
+  var isProcessing = false;
+  var processCount = 0;
+  var didItemChange = false;
   var instrument = {};
-  instrument.definitions = {};
   instrument.queue = {};
-  instrument._isProcessing = false;
-  instrument._processCount = 0;
   instrument._onMutate = [];
-  instrument._didItemChange = false;
-  function processQueueItem(key, items, definitions) {
-    var definition = definitions[key];
-    if (items[key] === undefined) {
-      var _className;
-      if (definition.hasOwnProperty('asClass')) {
-        var asClass = definition.asClass;
-        _className = asClass ? 'evolv-' + asClass : null;
-      } else _className = 'evolv-' + key;
-      items[key] = {
-        enode: $(),
-        // state: 'inactive',
-        className: _className
-      };
-    }
-    var item = items[key];
+  function processQueueItem(key) {
+    var item = instrument.queue[key];
     var enode = item.enode;
-    var newEnode = definition['select']();
+    var newEnode = item.select();
     var className = item.className;
     var wasConnected = enode.isConnected();
     var isConnected = newEnode.isConnected();
     var hasClass = newEnode.hasClass(className) || newEnode.doesExist() && className === null;
-    // const newState = isConnected && hasClass ? 'active' : 'inactive';
-
     debug('process instrument:', "'".concat(key, "'"), {
       wasConnected: wasConnected,
       isConnected: isConnected,
@@ -464,40 +448,48 @@ function initializeInstrument(sandbox) {
       item.enode = newEnode;
       if (className) item.enode.addClass(className);
       debug('process instrument: connect', "'".concat(key, "'"), item);
-      if (definition.onConnect) definition.onConnect.forEach(function (func) {
-        return func();
+      item.onConnect.forEach(function (callback) {
+        return callback();
       });
-      instrument._didItemChange = true;
+      didItemChange = true;
     } else if (wasConnected && !isConnected) {
       item.enode = newEnode;
       debug('process instrument: disconnect', "'".concat(key, "'"), item);
-      if (definition.onDisconnect) definition.onDisconnect.forEach(function (func) {
-        return func();
+      item.onDisconnect.forEach(function (callback) {
+        return callback();
       });
-      instrument._didItemChange = true;
+      didItemChange = true;
     } else if (wasConnected && isConnected && hasClass) {
-      processQueueLoop(definition.children);
+      processQueueLoop(item.children);
     }
   }
-  function processQueueLoop(items, definitions) {
-    for (var key in definitions) {
-      processQueueItem(key, items, definitions);
+  function processQueueLoop(keys) {
+    if (!keys) keys = Object.keys(instrument.queue);
+    var _iterator = _createForOfIteratorHelper(keys),
+      _step;
+    try {
+      for (_iterator.s(); !(_step = _iterator.n()).done;) {
+        var key = _step.value;
+        processQueueItem(key);
+      }
+    } catch (err) {
+      _iterator.e(err);
+    } finally {
+      _iterator.f();
     }
   }
-  instrument.processQueue = function (items, definitions) {
-    if (instrument._isProcessing) return;
-    // if (sandbox._evolvContext.state === 'inactive') return;
-
-    instrument._isProcessing = true;
-    instrument._processCount++;
-    instrument._didItemChange = false;
+  instrument.processQueue = function () {
+    if (isProcessing) return;
+    isProcessing = true;
+    processCount++;
+    didItemChange = false;
     var then = performance.now();
-    processQueueLoop(items, definitions);
-    debug('process instrument: complete', (performance.now() - then).toFixed(2), instrument._processCount);
-    instrument._isProcessing = false;
+    processQueueLoop();
+    debug('process instrument: complete', "".concat((performance.now() - then).toFixed(2), "ms"), processCount);
+    isProcessing = false;
 
     // Covers scenario where mutations are missed during long process
-    if (instrument._didItemChange) {
+    if (didItemChange) {
       debug('process instrument: item changed, reprocessing');
       instrument.debouncedProcessQueue();
     }
@@ -506,63 +498,67 @@ function initializeInstrument(sandbox) {
     });
   };
   instrument.debouncedProcessQueue = debounce(function () {
-    instrument.processQueue(instrument.queue, instrument.definitions);
+    instrument.processQueue();
   });
-  instrument.add = function (key, select, options) {
-    function addItem(key, select, options) {
-      debug('add instrument:', key, select, options);
-      if (typeof key !== 'string' && (typeof select !== 'function' || typeof select !== 'string')) {
-        warn("add instrument: requires item key string and selector string or select function");
-        return;
-      }
-      var newDefinition = {};
-      if (typeof select === 'string') {
-        newDefinition.select = function () {
-          return $(select);
-        };
-      } else {
-        newDefinition.select = select;
-      }
-      if (options) {
-        if (options.onConnect) newDefinition.onConnect = [options.onConnect];
-        if (options.onDisconnect) newDefinition.onDisconnect = [options.onDisconnect];
-        if (options.hasOwnProperty('asClass')) newDefinition.asClass = options.asClass;
-      }
-      var parent = {};
-      if (options && options.parent) {
-        parent = instrument.findDefinition(options.parent);
-        if (!parent) warn("add instrument: parent '".concat(options.parent, "' not found"));
-      } else {
-        instrument.definitions[key] = newDefinition;
-      }
-      parent.children = parent.children || {};
-      parent.children[key] = newDefinition;
+  function addItem(key, select, options) {
+    debug('add instrument:', key, select, options);
+    if (typeof key !== 'string' && typeof select !== 'function') {
+      warn("add instrument: requires item key string and select function");
+      return;
     }
+    var item = {
+      select: select,
+      onConnect: options && options.onConnect ? options.onConnect : [],
+      onDisconnect: options && options.onDisconnect ? options.onDisconnect : [],
+      type: options && options.type === 'single' ? 'single' : 'multi',
+      children: [],
+      enode: $()
+    };
+    if (options && options.hasOwnProperty('asClass')) item.className = options.asClass ? 'evolv-' + options.asClass : null;else item.className = 'evolv-' + key;
+    if (options && options.parent) {
+      var parent = instrument.queue[options.parent];
+      if (parent) {
+        parent.children.push(key);
+      } else {
+        warn("add instrument: parent '".concat(options.parent, "' not found"));
+      }
+    }
+    instrument.queue[key] = item;
+  }
+  instrument.add = function (key, select, options) {
+    debug(key, select, options);
     if (Array.isArray(key)) {
       key.forEach(function (item) {
+        debug('instrument.add:', item);
         addItem.apply(void 0, _toConsumableArray(item));
       });
     } else {
       addItem(key, select, options);
     }
-    instrument.processQueue(instrument.queue, instrument.definitions);
+    instrument.processQueue();
   };
-  instrument.findDefinition = function (searchKey) {
-    var result = null;
-    function searchBlock(searchKey, block) {
-      if (block[searchKey]) {
-        result = block[searchKey];
-        return;
-      }
-      for (var key in block) {
-        if (block[key].children) {
-          searchBlock(searchKey, block[key].children);
-        }
-      }
-    }
-    searchBlock(searchKey, instrument.definitions);
-    return result;
-  };
+
+  // instrument.findDefinition = (searchKey) => {
+  //     let result = null;
+
+  //     function searchBlock(searchKey, block) {
+  //         if (block[searchKey]) {
+  //             result = block[searchKey];
+  //             return;
+  //         }
+
+  //         for (const key in block) {
+  //             if (block[key].children) {
+  //                 searchBlock(searchKey, block[key].children);
+  //             }
+  //         }
+  //     }
+
+  //     searchBlock(searchKey, instrument.definitions);
+
+  //     return result;
+  // };
+
   sandbox.store.instrumentDOM = function (data) {
     var argumentArray = [];
     for (var key in data) {
@@ -574,7 +570,7 @@ function initializeInstrument(sandbox) {
     }
     instrument.add(argumentArray);
   };
-  sandbox.instrument = instrument;
+  return instrument;
 }
 function initializeEvolvContext(sandbox) {
   var debug = sandbox.debug;
@@ -766,9 +762,9 @@ function initializeWhenItem(sandbox) {
   var debug = sandbox.debug;
   var warn = sandbox.warn;
   return function (key, options) {
-    var definition = sandbox.instrument.findDefinition(key);
+    var item = sandbox.instrument.queue(key);
     var logName = options && options.logName ? options.logName : 'whenItem';
-    if (definition === null) {
+    if (!item) {
       warn("".concat(logName, ": instrument item '").concat(key, "' not defined"));
       return {
         then: function then() {
@@ -785,15 +781,13 @@ function initializeWhenItem(sandbox) {
         callback($$(key));
       };
       newEntry.callbackString = callback.toString();
-      if (!definition.onConnect) {
-        definition.onConnect = [];
-      } else if (definition.onConnect.findIndex(function (entry) {
+      if (item.onConnect.findIndex(function (entry) {
         return entry.callbackString === newEntry.callbackString;
       }) !== -1) {
         debug("".concat(logName, ": duplicate callback not assigned to item '").concat(key, "':"), callback);
         return;
       }
-      definition.onConnect.push(newEntry);
+      item.onConnect.push(newEntry);
       if (sandbox.instrument.queue[key] && sandbox.instrument.queue[key].enode.isConnected()) newEntry();
     };
     return {
@@ -858,12 +852,10 @@ function initializeSandbox(name) {
     if (window.evolv.catalyst._globalObserver.state === 'inactive') window.evolv.catalyst._globalObserver.connect();
   }
   sandbox.$ = $;
-  sandbox.$$ = function (name) {
-    var item = sandbox.instrument.queue[name];
+  sandbox.$$ = function (key) {
+    var item = sandbox.instrument.queue[key];
     if (!item) {
-      if (!sandbox.instrument.findDefinition(name)) {
-        warn("$$: '".concat(name, "' not found in instrument definitions list"));
-      }
+      warn("$$: '".concat(key, "' not found in instrument queue"));
       return $();
     } else if (!item.enode.isConnected()) {
       return $();
@@ -875,7 +867,7 @@ function initializeSandbox(name) {
   sandbox.store = {};
   sandbox.app = {};
   if (sandbox.name !== 'catalyst') {
-    initializeInstrument(sandbox);
+    sandbox.instrument = initializeInstrument(sandbox);
     sandbox._evolvContext = initializeEvolvContext(sandbox);
     sandbox.whenContext = initializeWhenContext(sandbox);
     sandbox.whenMutate = initializeWhenMutate(sandbox);
@@ -919,19 +911,19 @@ function initializeIntervalPoll(catalyst) {
       var processQueuesLoop = function processQueuesLoop() {
         var anySandboxActive = false;
         var queueTotal = 0;
-        var _iterator = _createForOfIteratorHelper(catalyst.sandboxes),
-          _step;
+        var _iterator2 = _createForOfIteratorHelper(catalyst.sandboxes),
+          _step2;
         try {
-          for (_iterator.s(); !(_step = _iterator.n()).done;) {
-            var sandbox = _step.value;
+          for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+            var sandbox = _step2.value;
             if (sandbox._evolvContext.state.current === 'inactive') continue;
             anySandboxActive = true;
             queueTotal += processQueue(sandbox);
           }
         } catch (err) {
-          _iterator.e(err);
+          _iterator2.e(err);
         } finally {
-          _iterator.f();
+          _iterator2.f();
         }
         if (!anySandboxActive) {
           catalyst.debug('interval poll: no active sandboxes');
@@ -1041,19 +1033,19 @@ function initializeCatalyst() {
   catalyst._globalObserver = {
     observer: new MutationObserver(function () {
       var anySandboxActive = false;
-      var _iterator2 = _createForOfIteratorHelper(catalyst.sandboxes),
-        _step2;
+      var _iterator3 = _createForOfIteratorHelper(catalyst.sandboxes),
+        _step3;
       try {
-        for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
-          var sandbox = _step2.value;
+        for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+          var sandbox = _step3.value;
           if (sandbox._evolvContext.state.current === 'inactive') continue;
           anySandboxActive = true;
           sandbox.instrument.debouncedProcessQueue();
         }
       } catch (err) {
-        _iterator2.e(err);
+        _iterator3.e(err);
       } finally {
-        _iterator2.f();
+        _iterator3.f();
       }
       if (!anySandboxActive) {
         debug('global observer: no sandboxes active');

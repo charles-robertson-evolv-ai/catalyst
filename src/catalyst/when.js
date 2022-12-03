@@ -177,11 +177,11 @@ function initializeWhenItem(sandbox) {
     const warn = sandbox.warn;
 
     return (key, options) => {
-        const definition = sandbox.instrument.findDefinition(key);
+        const item = sandbox.instrument.queue(key);
         const logName =
             options && options.logName ? options.logName : 'whenItem';
 
-        if (definition === null) {
+        if (!item) {
             warn(`${logName}: instrument item '${key}' not defined`);
             return {
                 then: () => null,
@@ -200,10 +200,8 @@ function initializeWhenItem(sandbox) {
 
             newEntry.callbackString = callback.toString();
 
-            if (!definition.onConnect) {
-                definition.onConnect = [];
-            } else if (
-                definition.onConnect.findIndex(
+            if (
+                item.onConnect.findIndex(
                     (entry) => entry.callbackString === newEntry.callbackString
                 ) !== -1
             ) {
@@ -214,7 +212,7 @@ function initializeWhenItem(sandbox) {
                 return;
             }
 
-            definition.onConnect.push(newEntry);
+            item.onConnect.push(newEntry);
             if (
                 sandbox.instrument.queue[key] &&
                 sandbox.instrument.queue[key].enode.isConnected()

@@ -13,41 +13,24 @@ function debounce(func, timeout = 17) {
 function initializeInstrument(sandbox) {
     const debug = sandbox.debug;
     const warn = sandbox.warn;
+    let isProcessing = false;
+    let processCount = 0;
+    let didItemChange = false;
+
     const instrument = {};
-    instrument.definitions = {};
     instrument.queue = {};
-    instrument._isProcessing = false;
-    instrument._processCount = 0;
     instrument._onMutate = [];
-    instrument._didItemChange = false;
 
-    function processQueueItem(key, items, definitions) {
-        const definition = definitions[key];
-
-        if (items[key] === undefined) {
-            let className;
-            if (definition.hasOwnProperty('asClass')) {
-                let asClass = definition.asClass;
-                className = asClass ? 'evolv-' + asClass : null;
-            } else className = 'evolv-' + key;
-
-            items[key] = {
-                enode: $(),
-                // state: 'inactive',
-                className: className,
-            };
-        }
-
-        const item = items[key];
+    function processQueueItem(key) {
+        const item = instrument.queue[key];
         const enode = item.enode;
-        const newEnode = definition['select']();
+        const newEnode = item.select();
         const className = item.className;
         const wasConnected = enode.isConnected();
         const isConnected = newEnode.isConnected();
         const hasClass =
             newEnode.hasClass(className) ||
             (newEnode.doesExist() && className === null);
-        // const newState = isConnected && hasClass ? 'active' : 'inactive';
 
         debug('process instrument:', `'${key}'`, {
             wasConnected,
@@ -63,47 +46,45 @@ function initializeInstrument(sandbox) {
             item.enode = newEnode;
             if (className) item.enode.addClass(className);
             debug('process instrument: connect', `'${key}'`, item);
-            if (definition.onConnect)
-                definition.onConnect.forEach((func) => func());
-            instrument._didItemChange = true;
+            item.onConnect.forEach((callback) => callback());
+            didItemChange = true;
         } else if (wasConnected && !isConnected) {
             item.enode = newEnode;
             debug('process instrument: disconnect', `'${key}'`, item);
-            if (definition.onDisconnect)
-                definition.onDisconnect.forEach((func) => func());
-            instrument._didItemChange = true;
+            item.onDisconnect.forEach((callback) => callback());
+            didItemChange = true;
         } else if (wasConnected && isConnected && hasClass) {
-            processQueueLoop(definition.children);
+            processQueueLoop(item.children);
         }
     }
 
-    function processQueueLoop(items, definitions) {
-        for (const key in definitions) {
-            processQueueItem(key, items, definitions);
+    function processQueueLoop(keys) {
+        if (!keys) keys = Object.keys(instrument.queue);
+        for (const key of keys) {
+            processQueueItem(key);
         }
     }
 
-    instrument.processQueue = (items, definitions) => {
-        if (instrument._isProcessing) return;
-        // if (sandbox._evolvContext.state === 'inactive') return;
+    instrument.processQueue = () => {
+        if (isProcessing) return;
 
-        instrument._isProcessing = true;
-        instrument._processCount++;
-        instrument._didItemChange = false;
+        isProcessing = true;
+        processCount++;
+        didItemChange = false;
         let then = performance.now();
 
-        processQueueLoop(items, definitions);
+        processQueueLoop();
 
         debug(
             'process instrument: complete',
-            (performance.now() - then).toFixed(2),
-            instrument._processCount
+            `${(performance.now() - then).toFixed(2)}ms`,
+            processCount
         );
 
-        instrument._isProcessing = false;
+        isProcessing = false;
 
         // Covers scenario where mutations are missed during long process
-        if (instrument._didItemChange) {
+        if (didItemChange) {
             debug('process instrument: item changed, reprocessing');
             instrument.debouncedProcessQueue();
         }
@@ -112,85 +93,81 @@ function initializeInstrument(sandbox) {
     };
 
     instrument.debouncedProcessQueue = debounce(() => {
-        instrument.processQueue(instrument.queue, instrument.definitions);
+        instrument.processQueue();
     });
 
-    instrument.add = (key, select, options) => {
-        function addItem(key, select, options) {
-            debug('add instrument:', key, select, options);
-            if (
-                typeof key !== 'string' &&
-                (typeof select !== 'function' || typeof select !== 'string')
-            ) {
-                warn(
-                    `add instrument: requires item key string and selector string or select function`
-                );
-                return;
-            }
-
-            const newDefinition = {};
-            if (typeof select === 'string') {
-                newDefinition.select = () => $(select);
-            } else {
-                newDefinition.select = select;
-            }
-
-            if (options) {
-                if (options.onConnect)
-                    newDefinition.onConnect = [options.onConnect];
-                if (options.onDisconnect)
-                    newDefinition.onDisconnect = [options.onDisconnect];
-                if (options.hasOwnProperty('asClass'))
-                    newDefinition.asClass = options.asClass;
-            }
-
-            let parent = {};
-            if (options && options.parent) {
-                parent = instrument.findDefinition(options.parent);
-
-                if (!parent)
-                    warn(
-                        `add instrument: parent '${options.parent}' not found`
-                    );
-            } else {
-                instrument.definitions[key] = newDefinition;
-            }
-
-            parent.children = parent.children || {};
-            parent.children[key] = newDefinition;
+    function addItem(key, select, options) {
+        debug('add instrument:', key, select, options);
+        if (typeof key !== 'string' && typeof select !== 'function') {
+            warn(
+                `add instrument: requires item key string and select function`
+            );
+            return;
         }
 
+        const item = {
+            select: select,
+            onConnect: options && options.onConnect ? options.onConnect : [],
+            onDisconnect:
+                options && options.onDisconnect ? options.onDisconnect : [],
+            type: options && options.type === 'single' ? 'single' : 'multi',
+            children: [],
+            enode: $(),
+        };
+
+        if (options && options.hasOwnProperty('asClass'))
+            item.className = options.asClass
+                ? 'evolv-' + options.asClass
+                : null;
+        else item.className = 'evolv-' + key;
+
+        if (options && options.parent) {
+            let parent = instrument.queue[options.parent];
+
+            if (parent) {
+                parent.children.push(key);
+            } else {
+                warn(`add instrument: parent '${options.parent}' not found`);
+            }
+        }
+
+        instrument.queue[key] = item;
+    }
+
+    instrument.add = (key, select, options) => {
+        debug(key, select, options);
         if (Array.isArray(key)) {
             key.forEach((item) => {
+                debug('instrument.add:', item);
                 addItem(...item);
             });
         } else {
             addItem(key, select, options);
         }
 
-        instrument.processQueue(instrument.queue, instrument.definitions);
+        instrument.processQueue();
     };
 
-    instrument.findDefinition = (searchKey) => {
-        let result = null;
+    // instrument.findDefinition = (searchKey) => {
+    //     let result = null;
 
-        function searchBlock(searchKey, block) {
-            if (block[searchKey]) {
-                result = block[searchKey];
-                return;
-            }
+    //     function searchBlock(searchKey, block) {
+    //         if (block[searchKey]) {
+    //             result = block[searchKey];
+    //             return;
+    //         }
 
-            for (const key in block) {
-                if (block[key].children) {
-                    searchBlock(searchKey, block[key].children);
-                }
-            }
-        }
+    //         for (const key in block) {
+    //             if (block[key].children) {
+    //                 searchBlock(searchKey, block[key].children);
+    //             }
+    //         }
+    //     }
 
-        searchBlock(searchKey, instrument.definitions);
+    //     searchBlock(searchKey, instrument.definitions);
 
-        return result;
-    };
+    //     return result;
+    // };
 
     sandbox.store.instrumentDOM = (data) => {
         const argumentArray = [];
@@ -208,7 +185,7 @@ function initializeInstrument(sandbox) {
         instrument.add(argumentArray);
     };
 
-    sandbox.instrument = instrument;
+    return instrument;
 }
 
 export { initializeInstrument };
