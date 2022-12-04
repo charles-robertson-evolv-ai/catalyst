@@ -465,16 +465,6 @@
         return new ENode(select, context, toMultiNodeValue);
     };
 
-    function debounce(func, timeout = 17) {
-        let timer;
-        return (...args) => {
-            clearTimeout(timer);
-            timer = setTimeout(() => {
-                func.apply(this, args);
-            }, timeout);
-        };
-    }
-
     function initializeInstrument(sandbox) {
         const debug = sandbox.debug;
         const warn = sandbox.warn;
@@ -486,6 +476,15 @@
         instrument.queue = {};
         instrument._onMutate = [];
 
+        function debounce(func, timeout = 17) {
+            let timer;
+            return (...args) => {
+                clearTimeout(timer);
+                timer = setTimeout(() => {
+                    func.apply(this, args);
+                }, timeout);
+            };
+        }
         function processQueueItem(key) {
             const item = instrument.queue[key];
             const enode = item.enode;
@@ -532,15 +531,6 @@
                 debug('process instrument: disconnect', `'${key}'`, item);
                 item.onDisconnect.forEach((callback) => callback());
                 didItemChange = true;
-            } else if (wasConnected && isConnected && hasClass) {
-                processQueueLoop(item.children);
-            }
-        }
-
-        function processQueueLoop(keys) {
-            if (!keys) keys = Object.keys(instrument.queue);
-            for (const key of keys) {
-                processQueueItem(key);
             }
         }
 
@@ -552,7 +542,9 @@
             didItemChange = false;
             let then = performance.now();
 
-            processQueueLoop();
+            for (const key in instrument.queue) {
+                processQueueItem(key);
+            }
 
             debug(
                 'process instrument: complete',
@@ -600,16 +592,6 @@
                     ? 'evolv-' + options.asClass
                     : null;
             else item.className = 'evolv-' + key;
-
-            if (options && options.parent) {
-                let parent = instrument.queue[options.parent];
-
-                if (parent) {
-                    parent.children.push(key);
-                } else {
-                    warn(`add instrument: parent '${options.parent}' not found`);
-                }
-            }
 
             instrument.queue[key] = item;
         }
