@@ -45,10 +45,10 @@ function initializeSandbox(name) {
     };
     sandbox.select = select;
     sandbox.selectAll = selectAll;
-    sandbox.store = {};
-    sandbox.app = {};
 
     if (sandbox.name !== 'catalyst') {
+        sandbox.store = {};
+        sandbox.app = {};
         sandbox.instrument = initializeInstrument(sandbox);
         sandbox._evolvContext = initializeEvolvContext(sandbox);
         sandbox.whenContext = initializeWhenContext(sandbox);
@@ -57,6 +57,20 @@ function initializeSandbox(name) {
         sandbox.whenItem = initializeWhenItem(sandbox);
         sandbox.whenElement = initializeWhenElement(sandbox);
         sandbox.waitUntil = initializeWaitUntil(sandbox);
+        sandbox.initVariant = (variant) => {
+            debug('init variant:', variant);
+            const className = `${sandbox.name}-${variant}`;
+            sandbox.whenContext('active').then(() => {
+                debug(`init variant: variant ${variant} active`);
+                sandbox.instrument.add(className, () =>
+                    sandbox.select(document.body)
+                );
+            });
+            sandbox.whenContext('inactive').then(() => {
+                debug(`init variant: variant ${variant} inactive`);
+                sandbox.instrument.remove(className);
+            });
+        };
     }
 
     // Backwards compatibility

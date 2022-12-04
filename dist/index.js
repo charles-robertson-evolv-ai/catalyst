@@ -119,11 +119,15 @@ var ENode = function ENode(select, context, toNodeValueFunc) {
 ENode.prototype.doesExist = function () {
   return this.length > 0 && this.el[0] !== null;
 };
+
+// Use Array.prototype.some() instead of findIndex() here
 ENode.prototype.isConnected = function () {
   return this.doesExist() && this.el.findIndex(function (e) {
     return !e.isConnected;
   }) === -1;
 };
+
+// Use Array.prototype.some() instead of findIndex() here
 ENode.prototype.hasClass = function (className) {
   return this.doesExist() && this.el.findIndex(function (e) {
     return !e.classList.contains(className);
@@ -434,19 +438,26 @@ function initializeInstrument(sandbox) {
   function processQueueItem(key) {
     var item = instrument.queue[key];
     var enode = item.enode;
-    var newEnode = item.select();
     var className = item.className;
-    var wasConnected = enode.isConnected();
-    var isConnected = newEnode.isConnected();
-    var hasClass = newEnode.hasClass(className) || newEnode.doesExist() && className === null;
+    var type = item.type;
+    var wasConnected, isConnected, hasClass, newEnode;
+    if (type === 'single') {
+      newEnode = enode.isConnected() ? enode : item.select();
+    } else {
+      newEnode = item.select();
+    }
+    wasConnected = item.state === 'connected';
+    isConnected = newEnode.isConnected();
+    hasClass = newEnode.hasClass(className) || newEnode.doesExist() && className === null;
     debug('process instrument:', "'".concat(key, "'"), {
       wasConnected: wasConnected,
       isConnected: isConnected,
       hasClass: hasClass
     });
-    if (!wasConnected && isConnected || isConnected && !hasClass || isConnected && className === null && !enode.isEqualTo(newEnode)) {
+    if (!wasConnected && isConnected || isConnected && !hasClass || type !== 'single' && isConnected && className === null && !enode.isEqualTo(newEnode)) {
       item.enode = newEnode;
       if (className) item.enode.addClass(className);
+      item.state = 'connected';
       debug('process instrument: connect', "'".concat(key, "'"), item);
       item.onConnect.forEach(function (callback) {
         return callback();
@@ -454,6 +465,7 @@ function initializeInstrument(sandbox) {
       didItemChange = true;
     } else if (wasConnected && !isConnected) {
       item.enode = newEnode;
+      item.state = 'disconnected';
       debug('process instrument: disconnect', "'".concat(key, "'"), item);
       item.onDisconnect.forEach(function (callback) {
         return callback();
@@ -512,7 +524,8 @@ function initializeInstrument(sandbox) {
       onDisconnect: options && options.onDisconnect ? options.onDisconnect : [],
       type: options && options.type === 'single' ? 'single' : 'multi',
       children: [],
-      enode: $()
+      enode: $(),
+      state: 'disconnected'
     };
     if (options && options.hasOwnProperty('asClass')) item.className = options.asClass ? 'evolv-' + options.asClass : null;else item.className = 'evolv-' + key;
     if (options && options.parent) {
@@ -526,10 +539,8 @@ function initializeInstrument(sandbox) {
     instrument.queue[key] = item;
   }
   instrument.add = function (key, select, options) {
-    debug(key, select, options);
     if (Array.isArray(key)) {
       key.forEach(function (item) {
-        debug('instrument.add:', item);
         addItem.apply(void 0, _toConsumableArray(item));
       });
     } else {
@@ -537,28 +548,12 @@ function initializeInstrument(sandbox) {
     }
     instrument.processQueue();
   };
-
-  // instrument.findDefinition = (searchKey) => {
-  //     let result = null;
-
-  //     function searchBlock(searchKey, block) {
-  //         if (block[searchKey]) {
-  //             result = block[searchKey];
-  //             return;
-  //         }
-
-  //         for (const key in block) {
-  //             if (block[key].children) {
-  //                 searchBlock(searchKey, block[key].children);
-  //             }
-  //         }
-  //     }
-
-  //     searchBlock(searchKey, instrument.definitions);
-
-  //     return result;
-  // };
-
+  instrument.remove = function (key) {
+    var queue = instrument.queue;
+    var item = queue[key];
+    item.enode.removeClass(item.className);
+    delete queue[key];
+  };
   sandbox.store.instrumentDOM = function (data) {
     var argumentArray = [];
     for (var key in data) {
@@ -585,6 +580,8 @@ function initializeEvolvContext(sandbox) {
     node.attr(_defineProperty({}, trackKey, tracking));
     return this;
   };
+
+  // Refactor to remove references to sandbox._evolvContext.state.previous
   return {
     state: {
       current: 'active',
@@ -601,7 +598,7 @@ function initializeEvolvContext(sandbox) {
       sandbox.waitUntil(function () {
         return window.evolv && window.evolv.client && window.evolv.client.getActiveKeys;
       }).then(function () {
-        window.evolv.client.getActiveKeys().listen(function (keys) {
+        window.evolv.client.getActiveKeys("web.".concat(value)).listen(function (keys) {
           var isActive;
           if (typeof value === 'string') isActive = function isActive() {
             return keys.current.length > 0;
@@ -762,7 +759,7 @@ function initializeWhenItem(sandbox) {
   var debug = sandbox.debug;
   var warn = sandbox.warn;
   return function (key, options) {
-    var item = sandbox.instrument.queue(key);
+    var item = sandbox.instrument.queue[key];
     var logName = options && options.logName ? options.logName : 'whenItem';
     if (!item) {
       warn("".concat(logName, ": instrument item '").concat(key, "' not defined"));
@@ -864,9 +861,9 @@ function initializeSandbox(name) {
   };
   sandbox.select = select;
   sandbox.selectAll = selectAll;
-  sandbox.store = {};
-  sandbox.app = {};
   if (sandbox.name !== 'catalyst') {
+    sandbox.store = {};
+    sandbox.app = {};
     sandbox.instrument = initializeInstrument(sandbox);
     sandbox._evolvContext = initializeEvolvContext(sandbox);
     sandbox.whenContext = initializeWhenContext(sandbox);
@@ -875,6 +872,20 @@ function initializeSandbox(name) {
     sandbox.whenItem = initializeWhenItem(sandbox);
     sandbox.whenElement = initializeWhenElement(sandbox);
     sandbox.waitUntil = initializeWaitUntil(sandbox);
+    sandbox.initVariant = function (variant) {
+      debug('init variant:', variant);
+      var className = "".concat(sandbox.name, "-").concat(variant);
+      sandbox.whenContext('active').then(function () {
+        debug("init variant: variant ".concat(variant, " active"));
+        sandbox.instrument.add(className, function () {
+          return sandbox.select(document.body);
+        });
+      });
+      sandbox.whenContext('inactive').then(function () {
+        debug("init variant: variant ".concat(variant, " inactive"));
+        sandbox.instrument.remove(className);
+      });
+    };
   }
 
   // Backwards compatibility
@@ -1010,22 +1021,6 @@ function initializeCatalyst() {
       return catalystReflection;
     }
   });
-
-  // catalyst.initVariant = (context, variant) => {
-  //     const sandbox = window.evolv.catalyst[context];
-  //     sandbox.whenContext('active').then(() => {
-  //         debug('variant active:', variant);
-  //         document.body.classList.add(`evolv-${variant}`);
-  //     });
-
-  //     sandbox.whenContext('inactive').then(() => {
-  //         debug('variant inactive:', variant);
-  //         document.body.classList.remove(`evolv-${variant}`);
-  //     });
-
-  //     return sandbox;
-  // };
-
   catalyst._intervalPoll = initializeIntervalPoll(catalyst);
 
   // The main mutation observer for all sandboxes

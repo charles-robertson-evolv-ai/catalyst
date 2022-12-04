@@ -24,11 +24,20 @@ function initializeInstrument(sandbox) {
     function processQueueItem(key) {
         const item = instrument.queue[key];
         const enode = item.enode;
-        const newEnode = item.select();
         const className = item.className;
-        const wasConnected = enode.isConnected();
-        const isConnected = newEnode.isConnected();
-        const hasClass =
+        const type = item.type;
+
+        let wasConnected, isConnected, hasClass, newEnode;
+
+        if (type === 'single') {
+            newEnode = enode.isConnected() ? enode : item.select();
+        } else {
+            newEnode = item.select();
+        }
+
+        wasConnected = item.state === 'connected';
+        isConnected = newEnode.isConnected();
+        hasClass =
             newEnode.hasClass(className) ||
             (newEnode.doesExist() && className === null);
 
@@ -41,15 +50,20 @@ function initializeInstrument(sandbox) {
         if (
             (!wasConnected && isConnected) ||
             (isConnected && !hasClass) ||
-            (isConnected && className === null && !enode.isEqualTo(newEnode))
+            (type !== 'single' &&
+                isConnected &&
+                className === null &&
+                !enode.isEqualTo(newEnode))
         ) {
             item.enode = newEnode;
             if (className) item.enode.addClass(className);
+            item.state = 'connected';
             debug('process instrument: connect', `'${key}'`, item);
             item.onConnect.forEach((callback) => callback());
             didItemChange = true;
         } else if (wasConnected && !isConnected) {
             item.enode = newEnode;
+            item.state = 'disconnected';
             debug('process instrument: disconnect', `'${key}'`, item);
             item.onDisconnect.forEach((callback) => callback());
             didItemChange = true;
@@ -113,6 +127,7 @@ function initializeInstrument(sandbox) {
             type: options && options.type === 'single' ? 'single' : 'multi',
             children: [],
             enode: $(),
+            state: 'disconnected',
         };
 
         if (options && options.hasOwnProperty('asClass'))
@@ -135,10 +150,8 @@ function initializeInstrument(sandbox) {
     }
 
     instrument.add = (key, select, options) => {
-        debug(key, select, options);
         if (Array.isArray(key)) {
             key.forEach((item) => {
-                debug('instrument.add:', item);
                 addItem(...item);
             });
         } else {
@@ -148,26 +161,12 @@ function initializeInstrument(sandbox) {
         instrument.processQueue();
     };
 
-    // instrument.findDefinition = (searchKey) => {
-    //     let result = null;
-
-    //     function searchBlock(searchKey, block) {
-    //         if (block[searchKey]) {
-    //             result = block[searchKey];
-    //             return;
-    //         }
-
-    //         for (const key in block) {
-    //             if (block[key].children) {
-    //                 searchBlock(searchKey, block[key].children);
-    //             }
-    //         }
-    //     }
-
-    //     searchBlock(searchKey, instrument.definitions);
-
-    //     return result;
-    // };
+    instrument.remove = (key) => {
+        const queue = instrument.queue;
+        const item = queue[key];
+        item.enode.removeClass(item.className);
+        delete queue[key];
+    };
 
     sandbox.store.instrumentDOM = (data) => {
         const argumentArray = [];

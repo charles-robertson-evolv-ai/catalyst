@@ -48,21 +48,6 @@ export function initializeCatalyst() {
         },
     });
 
-    // catalyst.initVariant = (context, variant) => {
-    //     const sandbox = window.evolv.catalyst[context];
-    //     sandbox.whenContext('active').then(() => {
-    //         debug('variant active:', variant);
-    //         document.body.classList.add(`evolv-${variant}`);
-    //     });
-
-    //     sandbox.whenContext('inactive').then(() => {
-    //         debug('variant inactive:', variant);
-    //         document.body.classList.remove(`evolv-${variant}`);
-    //     });
-
-    //     return sandbox;
-    // };
-
     catalyst._intervalPoll = initializeIntervalPoll(catalyst);
 
     // The main mutation observer for all sandboxes

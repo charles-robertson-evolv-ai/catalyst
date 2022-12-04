@@ -177,7 +177,7 @@ function initializeWhenItem(sandbox) {
     const warn = sandbox.warn;
 
     return (key, options) => {
-        const item = sandbox.instrument.queue(key);
+        const item = sandbox.instrument.queue[key];
         const logName =
             options && options.logName ? options.logName : 'whenItem';
 

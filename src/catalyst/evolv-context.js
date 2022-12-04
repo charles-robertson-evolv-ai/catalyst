@@ -14,6 +14,7 @@ function initializeEvolvContext(sandbox) {
         return this;
     };
 
+    // Refactor to remove references to sandbox._evolvContext.state.previous
     return {
         state: { current: 'active', previous: 'active' },
         onActivate: [
@@ -33,45 +34,52 @@ function initializeEvolvContext(sandbox) {
                         window.evolv.client.getActiveKeys
                 )
                 .then(() => {
-                    window.evolv.client.getActiveKeys().listen((keys) => {
-                        let isActive;
+                    window.evolv.client
+                        .getActiveKeys(`web.${value}`)
+                        .listen((keys) => {
+                            let isActive;
 
-                        if (typeof value === 'string')
-                            isActive = () => keys.current.length > 0;
-                        else if (typeof value === 'function') isActive = value;
-                        else
-                            warn(
-                                'init active key listener: requires context id string or isActive function, invalid input',
-                                value
-                            );
+                            if (typeof value === 'string')
+                                isActive = () => keys.current.length > 0;
+                            else if (typeof value === 'function')
+                                isActive = value;
+                            else
+                                warn(
+                                    'init active key listener: requires context id string or isActive function, invalid input',
+                                    value
+                                );
 
-                        sandbox._evolvContext.state.previous =
-                            sandbox._evolvContext.state.current;
-                        sandbox._evolvContext.state.current = isActive()
-                            ? 'active'
-                            : 'inactive';
-                        const current = sandbox._evolvContext.state.current;
-                        const previous = sandbox._evolvContext.state.previous;
+                            sandbox._evolvContext.state.previous =
+                                sandbox._evolvContext.state.current;
+                            sandbox._evolvContext.state.current = isActive()
+                                ? 'active'
+                                : 'inactive';
+                            const current = sandbox._evolvContext.state.current;
+                            const previous =
+                                sandbox._evolvContext.state.previous;
 
-                        if (previous === 'inactive' && current === 'active') {
-                            debug('active key listener: activate');
-                            sandbox._evolvContext.onActivate.forEach(
-                                (callback) => callback()
-                            );
-                        } else if (
-                            previous === 'active' &&
-                            current === 'inactive'
-                        ) {
-                            debug('active key listener: deactivate');
-                            sandbox._evolvContext.onDeactivate.forEach(
-                                (callback) => callback()
-                            );
-                        } else {
-                            debug(
-                                `active key listener: no change, current state '${current}'`
-                            );
-                        }
-                    });
+                            if (
+                                previous === 'inactive' &&
+                                current === 'active'
+                            ) {
+                                debug('active key listener: activate');
+                                sandbox._evolvContext.onActivate.forEach(
+                                    (callback) => callback()
+                                );
+                            } else if (
+                                previous === 'active' &&
+                                current === 'inactive'
+                            ) {
+                                debug('active key listener: deactivate');
+                                sandbox._evolvContext.onDeactivate.forEach(
+                                    (callback) => callback()
+                                );
+                            } else {
+                                debug(
+                                    `active key listener: no change, current state '${current}'`
+                                );
+                            }
+                        });
                 });
         },
     };

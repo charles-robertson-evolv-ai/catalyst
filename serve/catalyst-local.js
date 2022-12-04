@@ -127,10 +127,12 @@
         return this.length > 0 && this.el[0] !== null;
     };
 
+    // Use Array.prototype.some() instead of findIndex() here
     ENode.prototype.isConnected = function () {
         return this.doesExist() && this.el.findIndex((e) => !e.isConnected) === -1;
     };
 
+    // Use Array.prototype.some() instead of findIndex() here
     ENode.prototype.hasClass = function (className) {
         return (
             this.doesExist() &&
@@ -487,11 +489,20 @@
         function processQueueItem(key) {
             const item = instrument.queue[key];
             const enode = item.enode;
-            const newEnode = item.select();
             const className = item.className;
-            const wasConnected = enode.isConnected();
-            const isConnected = newEnode.isConnected();
-            const hasClass =
+            const type = item.type;
+
+            let wasConnected, isConnected, hasClass, newEnode;
+
+            if (type === 'single') {
+                newEnode = enode.isConnected() ? enode : item.select();
+            } else {
+                newEnode = item.select();
+            }
+
+            wasConnected = item.state === 'connected';
+            isConnected = newEnode.isConnected();
+            hasClass =
                 newEnode.hasClass(className) ||
                 (newEnode.doesExist() && className === null);
 
@@ -504,15 +515,20 @@
             if (
                 (!wasConnected && isConnected) ||
                 (isConnected && !hasClass) ||
-                (isConnected && className === null && !enode.isEqualTo(newEnode))
+                (type !== 'single' &&
+                    isConnected &&
+                    className === null &&
+                    !enode.isEqualTo(newEnode))
             ) {
                 item.enode = newEnode;
                 if (className) item.enode.addClass(className);
+                item.state = 'connected';
                 debug('process instrument: connect', `'${key}'`, item);
                 item.onConnect.forEach((callback) => callback());
                 didItemChange = true;
             } else if (wasConnected && !isConnected) {
                 item.enode = newEnode;
+                item.state = 'disconnected';
                 debug('process instrument: disconnect', `'${key}'`, item);
                 item.onDisconnect.forEach((callback) => callback());
                 didItemChange = true;
@@ -576,6 +592,7 @@
                 type: options && options.type === 'single' ? 'single' : 'multi',
                 children: [],
                 enode: $(),
+                state: 'disconnected',
             };
 
             if (options && options.hasOwnProperty('asClass'))
@@ -598,10 +615,8 @@
         }
 
         instrument.add = (key, select, options) => {
-            debug(key, select, options);
             if (Array.isArray(key)) {
                 key.forEach((item) => {
-                    debug('instrument.add:', item);
                     addItem(...item);
                 });
             } else {
@@ -611,26 +626,12 @@
             instrument.processQueue();
         };
 
-        // instrument.findDefinition = (searchKey) => {
-        //     let result = null;
-
-        //     function searchBlock(searchKey, block) {
-        //         if (block[searchKey]) {
-        //             result = block[searchKey];
-        //             return;
-        //         }
-
-        //         for (const key in block) {
-        //             if (block[key].children) {
-        //                 searchBlock(searchKey, block[key].children);
-        //             }
-        //         }
-        //     }
-
-        //     searchBlock(searchKey, instrument.definitions);
-
-        //     return result;
-        // };
+        instrument.remove = (key) => {
+            const queue = instrument.queue;
+            const item = queue[key];
+            item.enode.removeClass(item.className);
+            delete queue[key];
+        };
 
         sandbox.store.instrumentDOM = (data) => {
             const argumentArray = [];
@@ -665,6 +666,7 @@
             return this;
         };
 
+        // Refactor to remove references to sandbox._evolvContext.state.previous
         return {
             state: { current: 'active', previous: 'active' },
             onActivate: [
@@ -684,45 +686,52 @@
                             window.evolv.client.getActiveKeys
                     )
                     .then(() => {
-                        window.evolv.client.getActiveKeys().listen((keys) => {
-                            let isActive;
+                        window.evolv.client
+                            .getActiveKeys(`web.${value}`)
+                            .listen((keys) => {
+                                let isActive;
 
-                            if (typeof value === 'string')
-                                isActive = () => keys.current.length > 0;
-                            else if (typeof value === 'function') isActive = value;
-                            else
-                                warn(
-                                    'init active key listener: requires context id string or isActive function, invalid input',
-                                    value
-                                );
+                                if (typeof value === 'string')
+                                    isActive = () => keys.current.length > 0;
+                                else if (typeof value === 'function')
+                                    isActive = value;
+                                else
+                                    warn(
+                                        'init active key listener: requires context id string or isActive function, invalid input',
+                                        value
+                                    );
 
-                            sandbox._evolvContext.state.previous =
-                                sandbox._evolvContext.state.current;
-                            sandbox._evolvContext.state.current = isActive()
-                                ? 'active'
-                                : 'inactive';
-                            const current = sandbox._evolvContext.state.current;
-                            const previous = sandbox._evolvContext.state.previous;
+                                sandbox._evolvContext.state.previous =
+                                    sandbox._evolvContext.state.current;
+                                sandbox._evolvContext.state.current = isActive()
+                                    ? 'active'
+                                    : 'inactive';
+                                const current = sandbox._evolvContext.state.current;
+                                const previous =
+                                    sandbox._evolvContext.state.previous;
 
-                            if (previous === 'inactive' && current === 'active') {
-                                debug('active key listener: activate');
-                                sandbox._evolvContext.onActivate.forEach(
-                                    (callback) => callback()
-                                );
-                            } else if (
-                                previous === 'active' &&
-                                current === 'inactive'
-                            ) {
-                                debug('active key listener: deactivate');
-                                sandbox._evolvContext.onDeactivate.forEach(
-                                    (callback) => callback()
-                                );
-                            } else {
-                                debug(
-                                    `active key listener: no change, current state '${current}'`
-                                );
-                            }
-                        });
+                                if (
+                                    previous === 'inactive' &&
+                                    current === 'active'
+                                ) {
+                                    debug('active key listener: activate');
+                                    sandbox._evolvContext.onActivate.forEach(
+                                        (callback) => callback()
+                                    );
+                                } else if (
+                                    previous === 'active' &&
+                                    current === 'inactive'
+                                ) {
+                                    debug('active key listener: deactivate');
+                                    sandbox._evolvContext.onDeactivate.forEach(
+                                        (callback) => callback()
+                                    );
+                                } else {
+                                    debug(
+                                        `active key listener: no change, current state '${current}'`
+                                    );
+                                }
+                            });
                     });
             },
         };
@@ -905,7 +914,7 @@
         const warn = sandbox.warn;
 
         return (key, options) => {
-            const item = sandbox.instrument.queue(key);
+            const item = sandbox.instrument.queue[key];
             const logName =
                 options && options.logName ? options.logName : 'whenItem';
 
@@ -1029,10 +1038,10 @@
         };
         sandbox.select = select;
         sandbox.selectAll = selectAll;
-        sandbox.store = {};
-        sandbox.app = {};
 
         if (sandbox.name !== 'catalyst') {
+            sandbox.store = {};
+            sandbox.app = {};
             sandbox.instrument = initializeInstrument(sandbox);
             sandbox._evolvContext = initializeEvolvContext(sandbox);
             sandbox.whenContext = initializeWhenContext(sandbox);
@@ -1041,6 +1050,20 @@
             sandbox.whenItem = initializeWhenItem(sandbox);
             sandbox.whenElement = initializeWhenElement(sandbox);
             sandbox.waitUntil = initializeWaitUntil(sandbox);
+            sandbox.initVariant = (variant) => {
+                debug('init variant:', variant);
+                const className = `${sandbox.name}-${variant}`;
+                sandbox.whenContext('active').then(() => {
+                    debug(`init variant: variant ${variant} active`);
+                    sandbox.instrument.add(className, () =>
+                        sandbox.select(document.body)
+                    );
+                });
+                sandbox.whenContext('inactive').then(() => {
+                    debug(`init variant: variant ${variant} inactive`);
+                    sandbox.instrument.remove(className);
+                });
+            };
         }
 
         // Backwards compatibility
@@ -1173,21 +1196,6 @@
                 return catalystReflection;
             },
         });
-
-        // catalyst.initVariant = (context, variant) => {
-        //     const sandbox = window.evolv.catalyst[context];
-        //     sandbox.whenContext('active').then(() => {
-        //         debug('variant active:', variant);
-        //         document.body.classList.add(`evolv-${variant}`);
-        //     });
-
-        //     sandbox.whenContext('inactive').then(() => {
-        //         debug('variant inactive:', variant);
-        //         document.body.classList.remove(`evolv-${variant}`);
-        //     });
-
-        //     return sandbox;
-        // };
 
         catalyst._intervalPoll = initializeIntervalPoll(catalyst);
 

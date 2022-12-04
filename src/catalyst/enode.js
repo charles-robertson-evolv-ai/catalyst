@@ -68,10 +68,12 @@ ENode.prototype.doesExist = function () {
     return this.length > 0 && this.el[0] !== null;
 };
 
+// Use Array.prototype.some() instead of findIndex() here
 ENode.prototype.isConnected = function () {
     return this.doesExist() && this.el.findIndex((e) => !e.isConnected) === -1;
 };
 
+// Use Array.prototype.some() instead of findIndex() here
 ENode.prototype.hasClass = function (className) {
     return (
         this.doesExist() &&
