@@ -22,7 +22,10 @@ function initializeEvolvContext(sandbox) {
             window.evolv.catalyst._globalObserver.connect,
             window.evolv.catalyst._intervalPoll.startPolling,
         ],
-        onDeactivate: [() => debug(`deactivate context: ${sandbox.name}`)],
+        onDeactivate: [
+            () => debug(`deactivate context: ${sandbox.name}`),
+            window.evolv.catalyst._globalObserver.disconnect,
+        ],
         initializeActiveKeyListener: (value) => {
             debug('init active key listener: waiting for window.evolv.client');
 

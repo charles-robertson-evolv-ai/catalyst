@@ -117,7 +117,6 @@ function initializeInstrument(sandbox) {
             onDisconnect:
                 options && options.onDisconnect ? options.onDisconnect : [],
             type: options && options.type === 'single' ? 'single' : 'multi',
-            children: [],
             enode: $(),
             state: 'disconnected',
         };

@@ -9,6 +9,7 @@ import {
     initializeWhenDOM,
     initializeWhenItem,
     initializeWhenElement,
+    initializeWhenElements,
     initializeWaitUntil,
 } from './when.js';
 
@@ -31,22 +32,22 @@ function initializeSandbox(name) {
     }
 
     sandbox.$ = $;
-    sandbox.$$ = (key) => {
-        const item = sandbox.instrument.queue[key];
-
-        if (!item) {
-            warn(`$$: '${key}' not found in instrument queue`);
-            return $();
-        } else if (!item.enode.isConnected()) {
-            return $();
-        }
-
-        return item.enode;
-    };
     sandbox.select = select;
     sandbox.selectAll = selectAll;
 
     if (sandbox.name !== 'catalyst') {
+        sandbox.$$ = (key) => {
+            const item = sandbox.instrument.queue[key];
+
+            if (!item) {
+                warn(`$$: '${key}' not found in instrument queue`);
+                return $();
+            } else if (!item.enode.isConnected()) {
+                return $();
+            }
+
+            return item.enode;
+        };
         sandbox.store = {};
         sandbox.app = {};
         sandbox.instrument = initializeInstrument(sandbox);
@@ -56,6 +57,7 @@ function initializeSandbox(name) {
         sandbox.whenDOM = initializeWhenDOM(sandbox);
         sandbox.whenItem = initializeWhenItem(sandbox);
         sandbox.whenElement = initializeWhenElement(sandbox);
+        sandbox.whenElements = initializeWhenElements(sandbox);
         sandbox.waitUntil = initializeWaitUntil(sandbox);
         sandbox.initVariant = (variant) => {
             debug('init variant:', variant);

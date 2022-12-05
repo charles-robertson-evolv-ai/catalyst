@@ -127,12 +127,12 @@
         return this.length > 0 && this.el[0] !== null;
     };
 
-    // Use Array.prototype.some() instead of findIndex() here
+    // Tests if all enodes are connected
     ENode.prototype.isConnected = function () {
         return this.doesExist() && this.el.findIndex((e) => !e.isConnected) === -1;
     };
 
-    // Use Array.prototype.some() instead of findIndex() here
+    // Tests if all enodes have the indicated class
     ENode.prototype.hasClass = function (className) {
         return (
             this.doesExist() &&
@@ -582,7 +582,6 @@
                 onDisconnect:
                     options && options.onDisconnect ? options.onDisconnect : [],
                 type: options && options.type === 'single' ? 'single' : 'multi',
-                children: [],
                 enode: $$1(),
                 state: 'disconnected',
             };
@@ -656,7 +655,10 @@
                 window.evolv.catalyst._globalObserver.connect,
                 window.evolv.catalyst._intervalPoll.startPolling,
             ],
-            onDeactivate: [() => debug(`deactivate context: ${sandbox.name}`)],
+            onDeactivate: [
+                () => debug(`deactivate context: ${sandbox.name}`),
+                window.evolv.catalyst._globalObserver.disconnect,
+            ],
             initializeActiveKeyListener: (value) => {
                 debug('init active key listener: waiting for window.evolv.client');
 
@@ -824,9 +826,6 @@
         };
     }
 
-    // Accepts select string or a select function like instrument does
-    // TODO: Combine instrument items with identical select functions and
-    // disallow duplicate onConnect functions.
     function initializeWhenDOM(sandbox) {
         const counts = {};
         const history = [];
@@ -834,17 +833,21 @@
         const warn = sandbox.warn;
 
         return (select, options) => {
-            const logName =
-                options && options.logName ? options.logName : 'whenDOM';
+            const logPrefix =
+                options && options.logPrefix ? options.logPrefix : 'whenDOM';
             const keyPrefix =
                 options && options.keyPrefix ? options.keyPrefix : 'when-dom-';
+            const type = options && options.type ? options.type : 'multi';
             let selectFunc, count, key, foundPrevious;
             const previous = history.find((item) => item.select === select);
+            const whenItemOptions = { logPrefix };
+            if (options && options.callbackString)
+                whenItemOptions.callbackString = options.callbackString;
 
             if (previous && keyPrefix === previous.keyPrefix) {
-                debug(`${logName}: ${select} found, adding on-connect callback`);
                 selectFunc = previous.selectFunc;
                 key = previous.key;
+                debug(`${logPrefix}: '${select}' found in item '${key}'`);
                 foundPrevious = true;
             } else {
                 // Increment keys with different prefixes separately;
@@ -856,7 +859,7 @@
                     selectFunc = () => select;
                 else {
                     warn(
-                        `${logName}: unrecognized input ${select}, requires string or enode`
+                        `${logPrefix}: unrecognized input ${select}, requires string or enode`
                     );
                     return {
                         then: () => null,
@@ -876,8 +879,11 @@
 
             const thenFunc = (callback) => {
                 if (!foundPrevious)
-                    sandbox.instrument.add(key, selectFunc, { asClass: null });
-                sandbox.whenItem(key, { logName: logName }).then(callback);
+                    sandbox.instrument.add(key, selectFunc, {
+                        asClass: null,
+                        type: type,
+                    });
+                sandbox.whenItem(key, whenItemOptions).then(callback);
             };
 
             return {
@@ -891,49 +897,63 @@
     }
 
     function initializeWhenItem(sandbox) {
-        const $$ = sandbox.$$;
+        sandbox.$$;
         const debug = sandbox.debug;
         const warn = sandbox.warn;
 
         return (key, options) => {
             const item = sandbox.instrument.queue[key];
-            const logName =
-                options && options.logName ? options.logName : 'whenItem';
+            const logPrefix =
+                options && options.logPrefix ? options.logPrefix : 'whenItem';
+            let queueName, action;
+            if (options && options.disconnect) {
+                queueName = 'onDisconnect';
+                action = 'disconnect';
+            } else {
+                queueName = 'onConnect';
+                action = 'connect';
+            }
 
             if (!item) {
-                warn(`${logName}: instrument item '${key}' not defined`);
+                warn(`${logPrefix}: instrument item '${key}' not defined`);
                 return {
                     then: () => null,
                 };
             }
 
             const thenFunc = (callback) => {
-                debug(`${logName}: '${key}' add on-connect callback`, {
+                const index = item[queueName].length + 1;
+
+                debug(`${logPrefix}: '${key}' add on-${action} callback`, {
                     callback,
                 });
 
                 const newEntry = () => {
-                    debug(`${logName}: '${key}'`, 'fire on connect:', callback);
-                    callback($$(key));
+                    debug(`${logPrefix}: '${key}'`, `fire on ${action}:`, callback);
+                    callback(item.enode.markOnce(`evolv-${key}-${index}`));
                 };
 
-                newEntry.callbackString = callback.toString();
+                newEntry.callbackString =
+                    options && options.callbackString
+                        ? options.callbackString
+                        : callback.toString();
 
                 if (
-                    item.onConnect.findIndex(
+                    item[queueName].findIndex(
                         (entry) => entry.callbackString === newEntry.callbackString
                     ) !== -1
                 ) {
                     debug(
-                        `${logName}: duplicate callback not assigned to item '${key}':`,
+                        `${logPrefix}: duplicate on-${action} callback not assigned to item '${key}':`,
                         callback
                     );
                     return;
                 }
 
-                item.onConnect.push(newEntry);
+                item[queueName].push(newEntry);
+
                 if (
-                    sandbox.instrument.queue[key] &&
+                    queueName === 'onConnect' &&
                     sandbox.instrument.queue[key].enode.isConnected()
                 )
                     newEntry();
@@ -954,14 +974,36 @@
             return {
                 then: (callback) => {
                     sandbox
-                        .whenDOM(select, { keyPrefix: 'when-element-' })
-                        .then((enode) => callback(enode.el[0]));
+                        .whenDOM(select, {
+                            keyPrefix: 'when-element-',
+                            logPrefix: 'whenElement',
+                            type: 'single',
+                            callbackString: callback.toString,
+                        })
+                        .then((enodes) => callback(enodes.el[0]));
                 },
             };
         };
     }
 
-    // Add deduping
+    function initializeWhenElements(sandbox) {
+        return (select) => {
+            return {
+                then: (callback) => {
+                    sandbox
+                        .whenDOM(select, {
+                            keyPrefix: 'when-elements-',
+                            logPrefix: 'whenElements',
+                            callbackString: callback.toString,
+                        })
+                        .then((enodes) =>
+                            enodes.each((enode) => callback(enode.el[0]))
+                        );
+                },
+            };
+        };
+    }
+
     function initializeWaitUntil(sandbox) {
         sandbox._intervalPoll = {
             queue: [],
@@ -1006,22 +1048,22 @@
         }
 
         sandbox.$ = $$1;
-        sandbox.$$ = (key) => {
-            const item = sandbox.instrument.queue[key];
-
-            if (!item) {
-                warn(`$$: '${key}' not found in instrument queue`);
-                return $$1();
-            } else if (!item.enode.isConnected()) {
-                return $$1();
-            }
-
-            return item.enode;
-        };
         sandbox.select = select;
         sandbox.selectAll = selectAll;
 
         if (sandbox.name !== 'catalyst') {
+            sandbox.$$ = (key) => {
+                const item = sandbox.instrument.queue[key];
+
+                if (!item) {
+                    warn(`$$: '${key}' not found in instrument queue`);
+                    return $$1();
+                } else if (!item.enode.isConnected()) {
+                    return $$1();
+                }
+
+                return item.enode;
+            };
             sandbox.store = {};
             sandbox.app = {};
             sandbox.instrument = initializeInstrument(sandbox);
@@ -1031,6 +1073,7 @@
             sandbox.whenDOM = initializeWhenDOM(sandbox);
             sandbox.whenItem = initializeWhenItem(sandbox);
             sandbox.whenElement = initializeWhenElement(sandbox);
+            sandbox.whenElements = initializeWhenElements(sandbox);
             sandbox.waitUntil = initializeWaitUntil(sandbox);
             sandbox.initVariant = (variant) => {
                 debug('init variant:', variant);
