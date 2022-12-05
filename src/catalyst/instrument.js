@@ -103,13 +103,18 @@ function initializeInstrument(sandbox) {
     });
 
     function addItem(key, select, options) {
-        debug('add instrument:', key, select, options);
         if (typeof key !== 'string' && typeof select !== 'function') {
             warn(
-                `add instrument: requires item key string and select function`
+                `add instrument: requires item key string and select function, input invalid:`,
+                { key, select, options }
             );
             return;
+        } else if (instrument.queue.hasOwnProperty(key)) {
+            debug(`add instrument: queue item '${key}' already exists`);
+            return;
         }
+
+        debug('add instrument:', key, select, options);
 
         const item = {
             select: select,
