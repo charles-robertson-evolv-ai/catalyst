@@ -498,11 +498,18 @@ function initializeInstrument(sandbox) {
     instrument.processQueue();
   });
   function addItem(key, select, options) {
-    debug('add instrument:', key, select, options);
     if (typeof key !== 'string' && typeof select !== 'function') {
-      warn("add instrument: requires item key string and select function");
+      warn("add instrument: requires item key string and select function, input invalid:", {
+        key: key,
+        select: select,
+        options: options
+      });
+      return;
+    } else if (instrument.queue.hasOwnProperty(key)) {
+      debug("add instrument: queue item '".concat(key, "' already exists"));
       return;
     }
+    debug('add instrument:', key, select, options);
     var item = {
       select: select,
       onConnect: options && options.onConnect ? options.onConnect : [],
@@ -847,19 +854,35 @@ function initializeWaitUntil(sandbox) {
   sandbox._intervalPoll = {
     queue: []
   };
+  var debug = sandbox.debug;
+  var warn = sandbox.warn;
   return function (condition, timeout) {
-    sandbox.debug('waitUntil: add callback to interval poll queue, condition:', condition);
+    if (typeof condition !== 'function') {
+      warn('waitUntil: requires callback function that evaluates to true or false, input invalid', condition);
+    }
+    debug('waitUntil: add callback to interval poll queue', {
+      condition: condition,
+      timeout: timeout
+    });
     return {
       then: function then(_callback) {
-        var entry = {
+        var queue = sandbox._intervalPoll.queue;
+        var newEntry = {
           condition: condition,
           callback: function callback() {
             return _callback(condition());
           },
           timeout: timeout || null,
-          startTime: performance.now()
+          startTime: performance.now(),
+          callbackString: _callback.toString()
         };
-        sandbox._intervalPoll.queue.push(entry);
+        if (queue.some(function (entry) {
+          return entry.callbackString === newEntry.callbackString;
+        })) {
+          debug("waitUntil: duplicate callback not added to interval poll queue", _callback);
+          return;
+        }
+        queue.push(newEntry);
         window.evolv.catalyst._intervalPoll.startPolling();
       }
     };
