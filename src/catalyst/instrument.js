@@ -149,23 +149,22 @@ function initializeInstrument(sandbox) {
         delete queue[key];
     };
 
-    sandbox.store.instrumentDOM = (data) => {
-        const argumentArray = [];
-
-        for (const key in data) {
-            const dataItem = data[key];
-            const select = Object.getOwnPropertyDescriptor(dataItem, 'dom').get;
-            const options = {};
-            if (dataItem.hasOwnProperty('asClass'))
-                options.asClass = dataItem.asClass;
-
-            argumentArray.push([key, select, options]);
-        }
-
-        instrument.add(argumentArray);
-    };
-
     return instrument;
 }
 
-export { initializeInstrument };
+function initialize$$(sandbox) {
+    return (key) => {
+        const item = sandbox.instrument.queue[key];
+
+        if (!item) {
+            warn(`$$: '${key}' not found in instrument queue`);
+            return $();
+        } else if (!item.enode.isConnected()) {
+            return $();
+        }
+
+        return item.enode;
+    };
+}
+
+export { initializeInstrument, initialize$$ };

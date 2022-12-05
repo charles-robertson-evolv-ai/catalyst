@@ -614,23 +614,22 @@
             delete queue[key];
         };
 
-        sandbox.store.instrumentDOM = (data) => {
-            const argumentArray = [];
+        return instrument;
+    }
 
-            for (const key in data) {
-                const dataItem = data[key];
-                const select = Object.getOwnPropertyDescriptor(dataItem, 'dom').get;
-                const options = {};
-                if (dataItem.hasOwnProperty('asClass'))
-                    options.asClass = dataItem.asClass;
+    function initialize$$(sandbox) {
+        return (key) => {
+            const item = sandbox.instrument.queue[key];
 
-                argumentArray.push([key, select, options]);
+            if (!item) {
+                warn(`$$: '${key}' not found in instrument queue`);
+                return $$1();
+            } else if (!item.enode.isConnected()) {
+                return $$1();
             }
 
-            instrument.add(argumentArray);
+            return item.enode;
         };
-
-        return instrument;
     }
 
     function initializeEvolvContext(sandbox) {
@@ -651,16 +650,13 @@
         return {
             state: { current: 'active', previous: 'active' },
             onActivate: [
-                () => debug(`activate context: ${sandbox.name}`),
                 window.evolv.catalyst._globalObserver.connect,
                 window.evolv.catalyst._intervalPoll.startPolling,
             ],
-            onDeactivate: [
-                () => debug(`deactivate context: ${sandbox.name}`),
-                window.evolv.catalyst._globalObserver.disconnect,
-            ],
+            onDeactivate: [window.evolv.catalyst._globalObserver.disconnect],
             initializeActiveKeyListener: (value) => {
-                debug('init active key listener: waiting for window.evolv.client');
+                debug('active key listener: init');
+                debug('active key listener: waiting for window.evolv.client');
 
                 sandbox
                     .waitUntil(
@@ -698,7 +694,9 @@
                                     previous === 'inactive' &&
                                     current === 'active'
                                 ) {
-                                    debug('active key listener: activate');
+                                    debug(
+                                        `active key listener: activate context '${sandbox.name}'`
+                                    );
                                     sandbox._evolvContext.onActivate.forEach(
                                         (callback) => callback()
                                     );
@@ -706,7 +704,9 @@
                                     previous === 'active' &&
                                     current === 'inactive'
                                 ) {
-                                    debug('active key listener: deactivate');
+                                    debug(
+                                        `active key listener: deactivate context '${sandbox.name}'`
+                                    );
                                     sandbox._evolvContext.onDeactivate.forEach(
                                         (callback) => callback()
                                     );
@@ -717,6 +717,46 @@
                                 }
                             });
                     });
+            },
+        };
+    }
+
+    function initializeInitVariant(sandbox) {
+        return (variant) => {
+            debug('init variant:', variant);
+            const className = `${sandbox.name}-${variant}`;
+            sandbox.whenContext('active').then(() => {
+                debug(`init variant: variant ${variant} active`);
+                sandbox.instrument.add(className, () =>
+                    sandbox.select(document.body)
+                );
+            });
+            sandbox.whenContext('inactive').then(() => {
+                debug(`init variant: variant ${variant} inactive`);
+                sandbox.instrument.remove(className);
+            });
+        };
+    }
+
+    function initializeStore(sandbox) {
+        return {
+            instrumentDOM: (data) => {
+                const argumentArray = [];
+
+                for (const key in data) {
+                    const dataItem = data[key];
+                    const select = Object.getOwnPropertyDescriptor(
+                        dataItem,
+                        'dom'
+                    ).get;
+                    const options = {};
+                    if (dataItem.hasOwnProperty('asClass'))
+                        options.asClass = dataItem.asClass;
+
+                    argumentArray.push([key, select, options]);
+                }
+
+                sandbox.instrument.add(argumentArray);
             },
         };
     }
@@ -1036,7 +1076,7 @@
         initializeLogs(sandbox);
         const log = sandbox.log;
         const debug = sandbox.debug;
-        const warn = sandbox.warn;
+        sandbox.warn;
         if (name === 'catalyst') {
             log(`init catalyst version ${version}`);
             log(`log level: ${sandbox.logs}`);
@@ -1052,19 +1092,8 @@
         sandbox.selectAll = selectAll;
 
         if (sandbox.name !== 'catalyst') {
-            sandbox.$$ = (key) => {
-                const item = sandbox.instrument.queue[key];
-
-                if (!item) {
-                    warn(`$$: '${key}' not found in instrument queue`);
-                    return $$1();
-                } else if (!item.enode.isConnected()) {
-                    return $$1();
-                }
-
-                return item.enode;
-            };
-            sandbox.store = {};
+            sandbox.$$ = initialize$$(sandbox);
+            sandbox.store = initializeStore(sandbox);
             sandbox.app = {};
             sandbox.instrument = initializeInstrument(sandbox);
             sandbox._evolvContext = initializeEvolvContext(sandbox);
@@ -1075,20 +1104,7 @@
             sandbox.whenElement = initializeWhenElement(sandbox);
             sandbox.whenElements = initializeWhenElements(sandbox);
             sandbox.waitUntil = initializeWaitUntil(sandbox);
-            sandbox.initVariant = (variant) => {
-                debug('init variant:', variant);
-                const className = `${sandbox.name}-${variant}`;
-                sandbox.whenContext('active').then(() => {
-                    debug(`init variant: variant ${variant} active`);
-                    sandbox.instrument.add(className, () =>
-                        sandbox.select(document.body)
-                    );
-                });
-                sandbox.whenContext('inactive').then(() => {
-                    debug(`init variant: variant ${variant} inactive`);
-                    sandbox.instrument.remove(className);
-                });
-            };
+            sandbox.initVariant = initializeInitVariant(sandbox);
         }
 
         // Backwards compatibility

@@ -530,18 +530,19 @@ function initializeInstrument(sandbox) {
     item.enode.removeClass(item.className);
     delete queue[key];
   };
-  sandbox.store.instrumentDOM = function (data) {
-    var argumentArray = [];
-    for (var key in data) {
-      var dataItem = data[key];
-      var _select2 = Object.getOwnPropertyDescriptor(dataItem, 'dom').get;
-      var options = {};
-      if (dataItem.hasOwnProperty('asClass')) options.asClass = dataItem.asClass;
-      argumentArray.push([key, _select2, options]);
-    }
-    instrument.add(argumentArray);
-  };
   return instrument;
+}
+function initialize$$(sandbox) {
+  return function (key) {
+    var item = sandbox.instrument.queue[key];
+    if (!item) {
+      warn("$$: '".concat(key, "' not found in instrument queue"));
+      return $();
+    } else if (!item.enode.isConnected()) {
+      return $();
+    }
+    return item.enode;
+  };
 }
 function initializeEvolvContext(sandbox) {
   var debug = sandbox.debug;
@@ -563,14 +564,11 @@ function initializeEvolvContext(sandbox) {
       current: 'active',
       previous: 'active'
     },
-    onActivate: [function () {
-      return debug("activate context: ".concat(sandbox.name));
-    }, window.evolv.catalyst._globalObserver.connect, window.evolv.catalyst._intervalPoll.startPolling],
-    onDeactivate: [function () {
-      return debug("deactivate context: ".concat(sandbox.name));
-    }, window.evolv.catalyst._globalObserver.disconnect],
+    onActivate: [window.evolv.catalyst._globalObserver.connect, window.evolv.catalyst._intervalPoll.startPolling],
+    onDeactivate: [window.evolv.catalyst._globalObserver.disconnect],
     initializeActiveKeyListener: function initializeActiveKeyListener(value) {
-      debug('init active key listener: waiting for window.evolv.client');
+      debug('active key listener: init');
+      debug('active key listener: waiting for window.evolv.client');
       sandbox.waitUntil(function () {
         return window.evolv && window.evolv.client && window.evolv.client.getActiveKeys;
       }).then(function () {
@@ -584,12 +582,12 @@ function initializeEvolvContext(sandbox) {
           var current = sandbox._evolvContext.state.current;
           var previous = sandbox._evolvContext.state.previous;
           if (previous === 'inactive' && current === 'active') {
-            debug('active key listener: activate');
+            debug("active key listener: activate context '".concat(sandbox.name, "'"));
             sandbox._evolvContext.onActivate.forEach(function (callback) {
               return callback();
             });
           } else if (previous === 'active' && current === 'inactive') {
-            debug('active key listener: deactivate');
+            debug("active key listener: deactivate context '".concat(sandbox.name, "'"));
             sandbox._evolvContext.onDeactivate.forEach(function (callback) {
               return callback();
             });
@@ -598,6 +596,37 @@ function initializeEvolvContext(sandbox) {
           }
         });
       });
+    }
+  };
+}
+function initializeInitVariant(sandbox) {
+  return function (variant) {
+    debug('init variant:', variant);
+    var className = "".concat(sandbox.name, "-").concat(variant);
+    sandbox.whenContext('active').then(function () {
+      debug("init variant: variant ".concat(variant, " active"));
+      sandbox.instrument.add(className, function () {
+        return sandbox.select(document.body);
+      });
+    });
+    sandbox.whenContext('inactive').then(function () {
+      debug("init variant: variant ".concat(variant, " inactive"));
+      sandbox.instrument.remove(className);
+    });
+  };
+}
+function initializeStore(sandbox) {
+  return {
+    instrumentDOM: function instrumentDOM(data) {
+      var argumentArray = [];
+      for (var key in data) {
+        var dataItem = data[key];
+        var _select2 = Object.getOwnPropertyDescriptor(dataItem, 'dom').get;
+        var options = {};
+        if (dataItem.hasOwnProperty('asClass')) options.asClass = dataItem.asClass;
+        argumentArray.push([key, _select2, options]);
+      }
+      sandbox.instrument.add(argumentArray);
     }
   };
 }
@@ -842,7 +871,7 @@ function initializeSandbox(name) {
   initializeLogs(sandbox);
   var log = sandbox.log;
   var debug = sandbox.debug;
-  var warn = sandbox.warn;
+  sandbox.warn;
   if (name === 'catalyst') {
     log("init catalyst version ".concat(version));
     log("log level: ".concat(sandbox.logs));
@@ -855,17 +884,8 @@ function initializeSandbox(name) {
   sandbox.select = select;
   sandbox.selectAll = selectAll;
   if (sandbox.name !== 'catalyst') {
-    sandbox.$$ = function (key) {
-      var item = sandbox.instrument.queue[key];
-      if (!item) {
-        warn("$$: '".concat(key, "' not found in instrument queue"));
-        return $();
-      } else if (!item.enode.isConnected()) {
-        return $();
-      }
-      return item.enode;
-    };
-    sandbox.store = {};
+    sandbox.$$ = initialize$$(sandbox);
+    sandbox.store = initializeStore(sandbox);
     sandbox.app = {};
     sandbox.instrument = initializeInstrument(sandbox);
     sandbox._evolvContext = initializeEvolvContext(sandbox);
@@ -876,20 +896,7 @@ function initializeSandbox(name) {
     sandbox.whenElement = initializeWhenElement(sandbox);
     sandbox.whenElements = initializeWhenElements(sandbox);
     sandbox.waitUntil = initializeWaitUntil(sandbox);
-    sandbox.initVariant = function (variant) {
-      debug('init variant:', variant);
-      var className = "".concat(sandbox.name, "-").concat(variant);
-      sandbox.whenContext('active').then(function () {
-        debug("init variant: variant ".concat(variant, " active"));
-        sandbox.instrument.add(className, function () {
-          return sandbox.select(document.body);
-        });
-      });
-      sandbox.whenContext('inactive').then(function () {
-        debug("init variant: variant ".concat(variant, " inactive"));
-        sandbox.instrument.remove(className);
-      });
-    };
+    sandbox.initVariant = initializeInitVariant(sandbox);
   }
 
   // Backwards compatibility

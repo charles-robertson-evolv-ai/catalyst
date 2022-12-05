@@ -18,16 +18,13 @@ function initializeEvolvContext(sandbox) {
     return {
         state: { current: 'active', previous: 'active' },
         onActivate: [
-            () => debug(`activate context: ${sandbox.name}`),
             window.evolv.catalyst._globalObserver.connect,
             window.evolv.catalyst._intervalPoll.startPolling,
         ],
-        onDeactivate: [
-            () => debug(`deactivate context: ${sandbox.name}`),
-            window.evolv.catalyst._globalObserver.disconnect,
-        ],
+        onDeactivate: [window.evolv.catalyst._globalObserver.disconnect],
         initializeActiveKeyListener: (value) => {
-            debug('init active key listener: waiting for window.evolv.client');
+            debug('active key listener: init');
+            debug('active key listener: waiting for window.evolv.client');
 
             sandbox
                 .waitUntil(
@@ -65,7 +62,9 @@ function initializeEvolvContext(sandbox) {
                                 previous === 'inactive' &&
                                 current === 'active'
                             ) {
-                                debug('active key listener: activate');
+                                debug(
+                                    `active key listener: activate context '${sandbox.name}'`
+                                );
                                 sandbox._evolvContext.onActivate.forEach(
                                     (callback) => callback()
                                 );
@@ -73,7 +72,9 @@ function initializeEvolvContext(sandbox) {
                                 previous === 'active' &&
                                 current === 'inactive'
                             ) {
-                                debug('active key listener: deactivate');
+                                debug(
+                                    `active key listener: deactivate context '${sandbox.name}'`
+                                );
                                 sandbox._evolvContext.onDeactivate.forEach(
                                     (callback) => callback()
                                 );
@@ -88,4 +89,21 @@ function initializeEvolvContext(sandbox) {
     };
 }
 
-export { initializeEvolvContext };
+function initializeInitVariant(sandbox) {
+    return (variant) => {
+        debug('init variant:', variant);
+        const className = `${sandbox.name}-${variant}`;
+        sandbox.whenContext('active').then(() => {
+            debug(`init variant: variant ${variant} active`);
+            sandbox.instrument.add(className, () =>
+                sandbox.select(document.body)
+            );
+        });
+        sandbox.whenContext('inactive').then(() => {
+            debug(`init variant: variant ${variant} inactive`);
+            sandbox.instrument.remove(className);
+        });
+    };
+}
+
+export { initializeEvolvContext, initializeInitVariant };
