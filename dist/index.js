@@ -68,7 +68,7 @@ function initializeLogs(sandbox) {
       for (var _len2 = arguments.length, args = new Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
         args[_key2] = arguments[_key2];
       }
-      if (sandbox.logColor) (_console3 = console).info.apply(_console3, logPrefixColor.concat(args));else (_console4 = console).info.apply(_console4, [logPrefix].concat(args));
+      if (sandbox.logColor) (_console3 = console).warn.apply(_console3, logPrefixColor.concat(args));else (_console4 = console).info.apply(_console4, [logPrefix].concat(args));
     }
   };
   sandbox.debug = function () {
@@ -460,11 +460,13 @@ function initializeInstrument(sandbox) {
     wasConnected = item.state === 'connected';
     isConnected = newEnode.isConnected();
     hasClass = newEnode.hasClass(className) || newEnode.doesExist() && className === null;
-    debug('process instrument:', "'".concat(key, "'"), {
-      wasConnected: wasConnected,
-      isConnected: isConnected,
-      hasClass: hasClass
-    });
+
+    // debug('process instrument:', `'${key}'`, {
+    //     wasConnected,
+    //     isConnected,
+    //     hasClass,
+    // });
+
     if (!wasConnected && isConnected || isConnected && !hasClass || type !== 'single' && isConnected && className === null && !enode.isEqualTo(newEnode)) {
       item.enode = newEnode;
       if (className) item.enode.addClass(className);
@@ -572,16 +574,6 @@ function initialize$$(sandbox) {
 function initializeEvolvContext(sandbox) {
   var debug = sandbox.debug;
   var warn = sandbox.warn;
-
-  // Backward compatibility
-  sandbox.track = function (txt) {
-    var trackKey = 'evolv-' + this.name;
-    var node = $('body');
-    var tracking = node.attr(trackKey);
-    tracking = tracking ? tracking + ' ' + txt : txt;
-    node.attr(_defineProperty({}, trackKey, tracking));
-    return this;
-  };
   return {
     state: {
       current: 'active',
@@ -621,19 +613,33 @@ function initializeEvolvContext(sandbox) {
     }
   };
 }
-function initializeInitVariant(sandbox) {
+function initializeTrack(sandbox) {
+  var debug = sandbox.debug;
   return function (variant) {
-    debug('init variant:', variant);
+    debug('track:', variant);
+
+    // Backward compatibility
+    var trackKey = 'evolv-' + sandbox.name;
+    var body = sandbox.select(document.body);
     var className = "".concat(sandbox.name, "-").concat(variant);
     sandbox.whenContext('active').then(function () {
       debug("init variant: variant ".concat(variant, " active"));
+
+      // Backward compatibility
+      var tracking = body.attr(trackKey);
+      if (!tracking.split(' ').includes(variant)) {
+        tracking = tracking ? tracking + ' ' + variant : variant;
+        body.attr(_defineProperty({}, trackKey, tracking));
+      }
       sandbox.instrument.add(className, function () {
         return sandbox.select(document.body);
       });
     });
     sandbox.whenContext('inactive').then(function () {
       debug("init variant: variant ".concat(variant, " inactive"));
-      sandbox.instrument.remove(className);
+
+      // Backward compatibility
+      body.el[0].removeAttribute(trackKey);
     });
   };
 }
@@ -909,7 +915,6 @@ function initializeSandbox(name) {
   initializeLogs(sandbox);
   var log = sandbox.log;
   var debug = sandbox.debug;
-  sandbox.warn;
   if (name === 'catalyst') {
     log("init catalyst version ".concat(version));
     log("log level: ".concat(sandbox.logs));
@@ -934,7 +939,7 @@ function initializeSandbox(name) {
     sandbox.whenElement = initializeWhenElement(sandbox);
     sandbox.whenElements = initializeWhenElements(sandbox);
     sandbox.waitUntil = initializeWaitUntil(sandbox);
-    sandbox.initVariant = initializeInitVariant(sandbox);
+    sandbox.track = initializeTrack(sandbox);
   }
 
   // Backwards compatibility

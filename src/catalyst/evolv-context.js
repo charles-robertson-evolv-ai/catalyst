@@ -4,16 +4,6 @@ function initializeEvolvContext(sandbox) {
     const debug = sandbox.debug;
     const warn = sandbox.warn;
 
-    // Backward compatibility
-    sandbox.track = function (txt) {
-        var trackKey = 'evolv-' + this.name;
-        var node = $('body');
-        var tracking = node.attr(trackKey);
-        tracking = tracking ? tracking + ' ' + txt : txt;
-        node.attr({ [trackKey]: tracking });
-        return this;
-    };
-
     return {
         state: { current: 'active', previous: 'active' },
         onActivate: [
@@ -89,21 +79,38 @@ function initializeEvolvContext(sandbox) {
     };
 }
 
-function initializeInitVariant(sandbox) {
+function initializeTrack(sandbox) {
+    const debug = sandbox.debug;
+
     return (variant) => {
-        debug('init variant:', variant);
+        debug('track:', variant);
+
+        // Backward compatibility
+        var trackKey = 'evolv-' + sandbox.name;
+        var body = sandbox.select(document.body);
+
         const className = `${sandbox.name}-${variant}`;
         sandbox.whenContext('active').then(() => {
             debug(`init variant: variant ${variant} active`);
+
+            // Backward compatibility
+            var tracking = body.attr(trackKey);
+            if (!tracking.split(' ').includes(variant)) {
+                tracking = tracking ? tracking + ' ' + variant : variant;
+                body.attr({ [trackKey]: tracking });
+            }
+
             sandbox.instrument.add(className, () =>
                 sandbox.select(document.body)
             );
         });
         sandbox.whenContext('inactive').then(() => {
             debug(`init variant: variant ${variant} inactive`);
-            sandbox.instrument.remove(className);
+
+            // Backward compatibility
+            body.el[0].removeAttribute(trackKey);
         });
     };
 }
 
-export { initializeEvolvContext, initializeInitVariant };
+export { initializeEvolvContext, initializeTrack };

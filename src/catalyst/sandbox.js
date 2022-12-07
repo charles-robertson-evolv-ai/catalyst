@@ -2,7 +2,7 @@ import { version } from '../../package.json';
 import { initializeLogs } from './logs';
 import { $, select, selectAll } from './enode';
 import { initialize$$, initializeInstrument } from './instrument';
-import { initializeEvolvContext, initializeInitVariant } from './evolv-context';
+import { initializeEvolvContext, initializeTrack } from './evolv-context';
 import { initializeStore } from './store';
 import {
     initializeWhenContext,
@@ -21,7 +21,7 @@ function initializeSandbox(name) {
     initializeLogs(sandbox);
     const log = sandbox.log;
     const debug = sandbox.debug;
-    const warn = sandbox.warn;
+
     if (name === 'catalyst') {
         log(`init catalyst version ${version}`);
         log(`log level: ${sandbox.logs}`);
@@ -49,7 +49,7 @@ function initializeSandbox(name) {
         sandbox.whenElement = initializeWhenElement(sandbox);
         sandbox.whenElements = initializeWhenElements(sandbox);
         sandbox.waitUntil = initializeWaitUntil(sandbox);
-        sandbox.initVariant = initializeInitVariant(sandbox);
+        sandbox.track = initializeTrack(sandbox);
     }
 
     // Backwards compatibility

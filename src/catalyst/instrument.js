@@ -40,11 +40,11 @@ function initializeInstrument(sandbox) {
             newEnode.hasClass(className) ||
             (newEnode.doesExist() && className === null);
 
-        debug('process instrument:', `'${key}'`, {
-            wasConnected,
-            isConnected,
-            hasClass,
-        });
+        // debug('process instrument:', `'${key}'`, {
+        //     wasConnected,
+        //     isConnected,
+        //     hasClass,
+        // });
 
         if (
             (!wasConnected && isConnected) ||

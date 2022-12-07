@@ -61,7 +61,7 @@ function initializeLogs(sandbox) {
     sandbox.warn = (...args) => {
         const logs = sandbox.logs;
         if (logs === 'normal' || logs === 'debug') {
-            if (sandbox.logColor) console.info(...logPrefixColor, ...args);
+            if (sandbox.logColor) console.warn(...logPrefixColor, ...args);
             else console.info(logPrefix, ...args);
         }
     };

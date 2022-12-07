@@ -66,7 +66,7 @@
         sandbox.warn = (...args) => {
             const logs = sandbox.logs;
             if (logs === 'normal' || logs === 'debug') {
-                if (sandbox.logColor) console.info(...logPrefixColor, ...args);
+                if (sandbox.logColor) console.warn(...logPrefixColor, ...args);
                 else console.info(logPrefix, ...args);
             }
         };
@@ -526,11 +526,11 @@
                 newEnode.hasClass(className) ||
                 (newEnode.doesExist() && className === null);
 
-            debug('process instrument:', `'${key}'`, {
-                wasConnected,
-                isConnected,
-                hasClass,
-            });
+            // debug('process instrument:', `'${key}'`, {
+            //     wasConnected,
+            //     isConnected,
+            //     hasClass,
+            // });
 
             if (
                 (!wasConnected && isConnected) ||
@@ -670,16 +670,6 @@
         const debug = sandbox.debug;
         const warn = sandbox.warn;
 
-        // Backward compatibility
-        sandbox.track = function (txt) {
-            var trackKey = 'evolv-' + this.name;
-            var node = $$1('body');
-            var tracking = node.attr(trackKey);
-            tracking = tracking ? tracking + ' ' + txt : txt;
-            node.attr({ [trackKey]: tracking });
-            return this;
-        };
-
         return {
             state: { current: 'active', previous: 'active' },
             onActivate: [
@@ -755,19 +745,36 @@
         };
     }
 
-    function initializeInitVariant(sandbox) {
+    function initializeTrack(sandbox) {
+        const debug = sandbox.debug;
+
         return (variant) => {
-            debug('init variant:', variant);
+            debug('track:', variant);
+
+            // Backward compatibility
+            var trackKey = 'evolv-' + sandbox.name;
+            var body = sandbox.select(document.body);
+
             const className = `${sandbox.name}-${variant}`;
             sandbox.whenContext('active').then(() => {
                 debug(`init variant: variant ${variant} active`);
+
+                // Backward compatibility
+                var tracking = body.attr(trackKey);
+                if (!tracking.split(' ').includes(variant)) {
+                    tracking = tracking ? tracking + ' ' + variant : variant;
+                    body.attr({ [trackKey]: tracking });
+                }
+
                 sandbox.instrument.add(className, () =>
                     sandbox.select(document.body)
                 );
             });
             sandbox.whenContext('inactive').then(() => {
                 debug(`init variant: variant ${variant} inactive`);
-                sandbox.instrument.remove(className);
+
+                // Backward compatibility
+                body.el[0].removeAttribute(trackKey);
             });
         };
     }
@@ -1134,7 +1141,7 @@
         initializeLogs(sandbox);
         const log = sandbox.log;
         const debug = sandbox.debug;
-        sandbox.warn;
+
         if (name === 'catalyst') {
             log(`init catalyst version ${version}`);
             log(`log level: ${sandbox.logs}`);
@@ -1162,7 +1169,7 @@
             sandbox.whenElement = initializeWhenElement(sandbox);
             sandbox.whenElements = initializeWhenElements(sandbox);
             sandbox.waitUntil = initializeWaitUntil(sandbox);
-            sandbox.initVariant = initializeInitVariant(sandbox);
+            sandbox.track = initializeTrack(sandbox);
         }
 
         // Backwards compatibility
