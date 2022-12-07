@@ -13,61 +13,72 @@ function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && iter[Symb
 function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) return _arrayLikeToArray(arr); }
 function _arrayLikeToArray(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) { arr2[i] = arr[i]; } return arr2; }
 var version = "0.1.24";
-var environmentLogDefaults = {
-  // VCG
-  b02d16aa80: 'silent',
-  // Prod
-  add8459f1c: 'normal',
-  // Staging
-  '55e68a2ba9': 'normal',
-  // Development
-  eee20e49ae: 'normal',
-  // Prototype
-  b5d276c11b: 'normal',
-  // verizon qa
-
-  // VBG
-  '13d2e2d4fb': 'silent',
-  // Prod
-  '4271e3bfc8': 'normal',
-  // QA Testing
-  '6bfb40849e': 'normal' // UAT
-};
-
 function initializeLogs(sandbox) {
   // Uses console.info() because VBG blocks console.log();
 
-  var logPrefix = "[evolv-".concat(sandbox.name, "]");
+  var environmentLogDefaults = {
+    // VCG
+    b02d16aa80: 'silent',
+    // Prod
+    add8459f1c: 'normal',
+    // Staging
+    '55e68a2ba9': 'normal',
+    // Development
+    eee20e49ae: 'normal',
+    // Prototype
+    b5d276c11b: 'normal',
+    // verizon qa
+
+    // VBG
+    '13d2e2d4fb': 'silent',
+    // Prod
+    '4271e3bfc8': 'normal',
+    // QA Testing
+    '6bfb40849e': 'normal' // UAT
+  };
+
   var participantsURL = document.querySelector('script[src^="https://participants.evolv.ai"]');
   var environmentMatch = participantsURL ? participantsURL.getAttribute('src').match(/(?<=https:\/\/participants\.evolv\.ai\/v1\/)[a-z0-9]*(?=\/)/) : null;
   var environmentId = environmentMatch ? environmentMatch[0] : null;
   var environmentLogs = environmentId ? environmentLogDefaults[environmentId] : null;
-  var localStorageLogs = localStorage.getItem('evolv:catalyst-logs');
+  var localStorageItem = localStorage.getItem('evolv:catalyst-logs');
+  var localStorageMatch = localStorageItem.match(/silent|normal|debug/i);
+  var localStorageLogs = localStorageMatch ? localStorageMatch[0] : null;
   sandbox.logs = sandbox.logs || 'normal';
   if (environmentLogs) sandbox.logs = environmentLogs;
   if (localStorageLogs) sandbox.logs = localStorageLogs;
+  sandbox.logColor = localStorageItem ? localStorageItem.includes('color') : null;
+  var logPrefix = "[evolv-".concat(sandbox.name, "]");
+  var logPrefixColor = ["%c".concat(logPrefix), 'background-color: rgba(255, 122, 65, .5); border: 1px solid rgba(255, 122, 65, 1); border-radius: 2px'];
+  var debugPrefixColor = ["%c".concat(logPrefix), 'background-color: rgba(255, 122, 65, .25); border: 1px solid rgba(255, 122, 65, .5); border-radius: 2px'];
   sandbox.log = function () {
-    var _console;
     var logs = sandbox.logs;
-    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-      args[_key] = arguments[_key];
+    if (logs === 'normal' || logs === 'debug') {
+      var _console, _console2;
+      for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+        args[_key] = arguments[_key];
+      }
+      if (sandbox.logColor) (_console = console).info.apply(_console, logPrefixColor.concat(args));else (_console2 = console).info.apply(_console2, [logPrefix].concat(args));
     }
-    if (logs === 'normal' || logs === 'debug') (_console = console).info.apply(_console, [logPrefix].concat(args));
   };
   sandbox.warn = function () {
-    var _console2;
     var logs = sandbox.logs;
-    for (var _len2 = arguments.length, args = new Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
-      args[_key2] = arguments[_key2];
+    if (logs === 'normal' || logs === 'debug') {
+      var _console3, _console4;
+      for (var _len2 = arguments.length, args = new Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
+        args[_key2] = arguments[_key2];
+      }
+      if (sandbox.logColor) (_console3 = console).info.apply(_console3, logPrefixColor.concat(args));else (_console4 = console).info.apply(_console4, [logPrefix].concat(args));
     }
-    if (logs === 'normal' || logs === 'debug') (_console2 = console).warn.apply(_console2, [logPrefix].concat(args));
   };
   sandbox.debug = function () {
-    var _console3;
-    for (var _len3 = arguments.length, args = new Array(_len3), _key3 = 0; _key3 < _len3; _key3++) {
-      args[_key3] = arguments[_key3];
+    if (sandbox.logs === 'debug') {
+      var _console5, _console6;
+      for (var _len3 = arguments.length, args = new Array(_len3), _key3 = 0; _key3 < _len3; _key3++) {
+        args[_key3] = arguments[_key3];
+      }
+      if (sandbox.logColor) (_console5 = console).info.apply(_console5, debugPrefixColor.concat(args));else (_console6 = console).info.apply(_console6, [logPrefix].concat(args));
     }
-    if (sandbox.logs === 'debug') (_console3 = console).info.apply(_console3, ["".concat(logPrefix)].concat(args));
   };
 }
 function toSingleNodeValue(select, context) {
@@ -1046,7 +1057,7 @@ function initializeCatalyst() {
             if (!hasInitializedActiveKeyListener && (property === 'key' || property === 'isActive')) {
               sandbox._evolvContext.initializeActiveKeyListener(value);
               hasInitializedActiveKeyListener = true;
-            } else {
+            } else if (property === 'key' || property === 'isActive') {
               sandbox.debug('init sandbox: active key listener already initialized');
             }
             return true;

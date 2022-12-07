@@ -30,7 +30,10 @@ export function initializeCatalyst() {
                                 value
                             );
                             hasInitializedActiveKeyListener = true;
-                        } else {
+                        } else if (
+                            property === 'key' ||
+                            property === 'isActive'
+                        ) {
                             sandbox.debug(
                                 'init sandbox: active key listener already initialized'
                             );
