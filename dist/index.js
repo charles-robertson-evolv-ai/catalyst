@@ -12,7 +12,7 @@ function _unsupportedIterableToArray(o, minLen) { if (!o) return; if (typeof o =
 function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) return Array.from(iter); }
 function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) return _arrayLikeToArray(arr); }
 function _arrayLikeToArray(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) { arr2[i] = arr[i]; } return arr2; }
-var version = "0.1.23";
+var version = "0.1.24";
 var environmentLogDefaults = {
   // VCG
   b02d16aa80: 'silent',
@@ -532,10 +532,17 @@ function initializeInstrument(sandbox) {
     instrument.processQueue();
   };
   instrument.remove = function (key) {
+    debug('remove instrument:', key);
     var queue = instrument.queue;
     var item = queue[key];
     item.enode.removeClass(item.className);
     delete queue[key];
+  };
+  instrument.deinstrument = function () {
+    debug('deinstrument: removing classes and clearing instrument queue');
+    for (var key in instrument.queue) {
+      instrument.remove(key);
+    }
   };
   return instrument;
 }
@@ -564,15 +571,13 @@ function initializeEvolvContext(sandbox) {
     node.attr(_defineProperty({}, trackKey, tracking));
     return this;
   };
-
-  // Refactor to remove references to sandbox._evolvContext.state.previous
   return {
     state: {
       current: 'active',
       previous: 'active'
     },
     onActivate: [window.evolv.catalyst._globalObserver.connect, window.evolv.catalyst._intervalPoll.startPolling],
-    onDeactivate: [window.evolv.catalyst._globalObserver.disconnect],
+    onDeactivate: [window.evolv.catalyst._globalObserver.disconnect, sandbox.instrument.deinstrument],
     initializeActiveKeyListener: function initializeActiveKeyListener(value) {
       debug('active key listener: init');
       debug('active key listener: waiting for window.evolv.client');
@@ -584,10 +589,9 @@ function initializeEvolvContext(sandbox) {
           if (typeof value === 'string') isActive = function isActive() {
             return keys.current.length > 0;
           };else if (typeof value === 'function') isActive = value;else warn('init active key listener: requires context id string or isActive function, invalid input', value);
-          sandbox._evolvContext.state.previous = sandbox._evolvContext.state.current;
+          var previous = sandbox._evolvContext.state.current;
           sandbox._evolvContext.state.current = isActive() ? 'active' : 'inactive';
           var current = sandbox._evolvContext.state.current;
-          var previous = sandbox._evolvContext.state.previous;
           if (previous === 'inactive' && current === 'active') {
             debug("active key listener: activate context '".concat(sandbox.name, "'"));
             sandbox._evolvContext.onActivate.forEach(function (callback) {

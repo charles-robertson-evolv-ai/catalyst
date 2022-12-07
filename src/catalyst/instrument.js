@@ -148,10 +148,18 @@ function initializeInstrument(sandbox) {
     };
 
     instrument.remove = (key) => {
+        debug('remove instrument:', key);
         const queue = instrument.queue;
         const item = queue[key];
         item.enode.removeClass(item.className);
         delete queue[key];
+    };
+
+    instrument.deinstrument = () => {
+        debug('deinstrument: removing classes and clearing instrument queue');
+        for (const key in instrument.queue) {
+            instrument.remove(key);
+        }
     };
 
     return instrument;

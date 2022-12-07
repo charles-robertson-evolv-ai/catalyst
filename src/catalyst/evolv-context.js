@@ -14,14 +14,16 @@ function initializeEvolvContext(sandbox) {
         return this;
     };
 
-    // Refactor to remove references to sandbox._evolvContext.state.previous
     return {
         state: { current: 'active', previous: 'active' },
         onActivate: [
             window.evolv.catalyst._globalObserver.connect,
             window.evolv.catalyst._intervalPoll.startPolling,
         ],
-        onDeactivate: [window.evolv.catalyst._globalObserver.disconnect],
+        onDeactivate: [
+            window.evolv.catalyst._globalObserver.disconnect,
+            sandbox.instrument.deinstrument,
+        ],
         initializeActiveKeyListener: (value) => {
             debug('active key listener: init');
             debug('active key listener: waiting for window.evolv.client');
@@ -49,14 +51,12 @@ function initializeEvolvContext(sandbox) {
                                     value
                                 );
 
-                            sandbox._evolvContext.state.previous =
+                            const previous =
                                 sandbox._evolvContext.state.current;
                             sandbox._evolvContext.state.current = isActive()
                                 ? 'active'
                                 : 'inactive';
                             const current = sandbox._evolvContext.state.current;
-                            const previous =
-                                sandbox._evolvContext.state.previous;
 
                             if (
                                 previous === 'inactive' &&
