@@ -12,7 +12,7 @@ function _unsupportedIterableToArray(o, minLen) { if (!o) return; if (typeof o =
 function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) return Array.from(iter); }
 function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) return _arrayLikeToArray(arr); }
 function _arrayLikeToArray(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) { arr2[i] = arr[i]; } return arr2; }
-var version = "0.1.24";
+var version = "0.1.25";
 function initializeLogs(sandbox) {
   // Uses console.info() because VBG blocks console.log();
 
@@ -42,7 +42,7 @@ function initializeLogs(sandbox) {
   var environmentId = environmentMatch ? environmentMatch[0] : null;
   var environmentLogs = environmentId ? environmentLogDefaults[environmentId] : null;
   var localStorageItem = localStorage.getItem('evolv:catalyst-logs');
-  var localStorageMatch = localStorageItem.match(/silent|normal|debug/i);
+  var localStorageMatch = localStorageItem ? localStorageItem.match(/silent|normal|debug/i) : null;
   var localStorageLogs = localStorageMatch ? localStorageMatch[0] : null;
   sandbox.logs = sandbox.logs || 'normal';
   if (environmentLogs) sandbox.logs = environmentLogs;
@@ -460,13 +460,6 @@ function initializeInstrument(sandbox) {
     wasConnected = item.state === 'connected';
     isConnected = newEnode.isConnected();
     hasClass = newEnode.hasClass(className) || newEnode.doesExist() && className === null;
-
-    // debug('process instrument:', `'${key}'`, {
-    //     wasConnected,
-    //     isConnected,
-    //     hasClass,
-    // });
-
     if (!wasConnected && isConnected || isConnected && !hasClass || type !== 'single' && isConnected && className === null && !enode.isEqualTo(newEnode)) {
       item.enode = newEnode;
       if (className) item.enode.addClass(className);
@@ -556,14 +549,15 @@ function initializeInstrument(sandbox) {
     for (var key in instrument.queue) {
       instrument.remove(key);
     }
+    sandbox.whenDOM.reset();
   };
   return instrument;
 }
-function initialize$$(sandbox) {
+function initializeSelectInstrument(sandbox) {
   return function (key) {
     var item = sandbox.instrument.queue[key];
     if (!item) {
-      warn("$$: '".concat(key, "' not found in instrument queue"));
+      warn("select instrument: '".concat(key, "' not found in instrument queue"));
       return $();
     } else if (!item.enode.isConnected()) {
       return $();
@@ -658,6 +652,16 @@ function initializeStore(sandbox) {
     }
   };
 }
+function hash(string) {
+  var hash = 0;
+  var increment = Math.trunc(string.length / 512) || 1;
+  for (var i = 0; i < string.length; i += increment) {
+    var chr = string.charCodeAt(i);
+    hash = (hash << 5) - hash + chr;
+  }
+  hash &= 0xffff;
+  return hash;
+}
 function initializeWhenContext(sandbox) {
   var debug = sandbox.debug;
   return function (state) {
@@ -679,11 +683,11 @@ function initializeWhenContext(sandbox) {
           debug("whenContext: fire on ".concat(state === 'inactive' ? 'deactivate' : 'activate'), callback);
           callback();
         };
-        newEntry.callbackString = callback.toString();
+        newEntry.hash = hash(callback.toString());
 
         // Dedupe callbacks
         if (sandbox._evolvContext[queueName].findIndex(function (entry) {
-          return entry.callbackString === newEntry.callbackString;
+          return entry.hash === newEntry.hash;
         }) !== -1) {
           debug("whenContext: duplicate callback not assigned to '".concat(state, "' state"), callback);
           return;
@@ -708,11 +712,11 @@ function initializeWhenMutate(sandbox) {
           debug("whenMutate: fire on mutate", callback);
           callback();
         };
-        newEntry.callbackString = callback.toString();
+        newEntry.hash = hash(callback.toString());
 
         // Dedupe callbacks
         if (sandbox.instrument._onMutate.findIndex(function (entry) {
-          return entry.callbackString === newEntry.callbackString;
+          return entry.hash === newEntry.hash;
         }) !== -1) {
           debug("whenMutate: duplicate callback not assigned to on-mutate queue", callback);
           return;
@@ -723,12 +727,76 @@ function initializeWhenMutate(sandbox) {
     };
   };
 }
+function initializeWhenItem(sandbox) {
+  var debug = sandbox.debug;
+  var warn = sandbox.warn;
+  return function (key, options) {
+    var item = sandbox.instrument.queue[key];
+    var logPrefix = options && options.logPrefix ? options.logPrefix : 'whenItem';
+    var queueName, action;
+    if (options && options.disconnect) {
+      queueName = 'onDisconnect';
+      action = 'disconnect';
+    } else {
+      queueName = 'onConnect';
+      action = 'connect';
+    }
+    if (!item) {
+      warn("".concat(logPrefix, ": instrument item '").concat(key, "' not defined"));
+      return {
+        then: function then() {
+          return null;
+        }
+      };
+    }
+    var thenFunc = function thenFunc(callback, isInBulk) {
+      debug("".concat(logPrefix, ": '").concat(key, "' add on-").concat(action, " callback"), {
+        callback: callback
+      });
+      var newEntry;
+      var index = item[queueName].length + 1;
+      var enode = item.type === 'single' ? item.enode.first() : item.enode;
+      if (!isInBulk) {
+        newEntry = function newEntry() {
+          debug("".concat(logPrefix, ": '").concat(key, "'"), "fire on ".concat(action, ":"), callback);
+          enode.markOnce("evolv-".concat(key, "-").concat(index)).each(function (enodeItem) {
+            return callback(enodeItem);
+          });
+        };
+      } else {
+        newEntry = function newEntry() {
+          debug("".concat(logPrefix, ": '").concat(key, "'"), "fire in bulk on ".concat(action, ":"), callback);
+          callback(enode.markOnce("evolv-".concat(key, "-").concat(index)));
+        };
+      }
+      newEntry.hash = options && options.hash ? options.hash : hash(callback.toString());
+      if (item[queueName].findIndex(function (entry) {
+        return entry.hash === newEntry.hash;
+      }) !== -1) {
+        debug("".concat(logPrefix, ": duplicate on-").concat(action, " callback not assigned to item '").concat(key, "':"), callback);
+        return;
+      }
+      item[queueName].push(newEntry);
+      if (queueName === 'onConnect' && sandbox.instrument.queue[key].enode.isConnected()) newEntry();
+    };
+    function thenInBulkFunc(callback) {
+      thenFunc(callback, true);
+    }
+    return {
+      then: thenFunc,
+      // Deprecated
+      thenInBulk: thenInBulkFunc,
+      // Deprecated
+      reactivateOnChange: function reactivateOnChange() {}
+    };
+  };
+}
 function initializeWhenDOM(sandbox) {
   var counts = {};
   var history = [];
   var debug = sandbox.debug;
   var warn = sandbox.warn;
-  return function (select, options) {
+  var whenDOM = function whenDOM(select, options) {
     var logPrefix = options && options.logPrefix ? options.logPrefix : 'whenDOM';
     var keyPrefix = options && options.keyPrefix ? options.keyPrefix : 'when-dom-';
     var type = options && options.type ? options.type : 'multi';
@@ -739,11 +807,11 @@ function initializeWhenDOM(sandbox) {
     var whenItemOptions = {
       logPrefix: logPrefix
     };
-    if (options && options.callbackString) whenItemOptions.callbackString = options.callbackString;
+    if (options && options.hash) whenItemOptions.hash = options.hash;
     if (previous && keyPrefix === previous.keyPrefix) {
       selectFunc = previous.selectFunc;
       key = previous.key;
-      debug("".concat(logPrefix, ": '").concat(select, "' found in item '").concat(key, "'"));
+      debug("".concat(logPrefix, ": selector '").concat(select, "' found in item '").concat(key, "'"));
       foundPrevious = true;
     } else {
       // Increment keys with different prefixes separately;
@@ -771,72 +839,35 @@ function initializeWhenDOM(sandbox) {
         key: key
       });
     }
-    var thenFunc = function thenFunc(callback) {
-      if (!foundPrevious) sandbox.instrument.add(key, selectFunc, {
-        asClass: null,
-        type: type
-      });
-      sandbox.whenItem(key, whenItemOptions).then(callback);
-    };
     return {
-      then: thenFunc,
-      // Deprecated
-      thenInBulk: thenFunc,
+      then: function then(callback) {
+        if (!foundPrevious) sandbox.instrument.add(key, selectFunc, {
+          asClass: null,
+          type: type
+        });
+        sandbox.whenItem(key, whenItemOptions).then(callback);
+      },
+      thenInBulk: function thenInBulk(callback) {
+        if (!foundPrevious) sandbox.instrument.add(key, selectFunc, {
+          asClass: null,
+          type: type
+        });
+        sandbox.whenItem(key, whenItemOptions).thenInBulk(callback);
+      },
       // Deprecated
       reactivateOnChange: function reactivateOnChange() {}
     };
   };
-}
-function initializeWhenItem(sandbox) {
-  sandbox.$$;
-  var debug = sandbox.debug;
-  var warn = sandbox.warn;
-  return function (key, options) {
-    var item = sandbox.instrument.queue[key];
-    var logPrefix = options && options.logPrefix ? options.logPrefix : 'whenItem';
-    var queueName, action;
-    if (options && options.disconnect) {
-      queueName = 'onDisconnect';
-      action = 'disconnect';
-    } else {
-      queueName = 'onConnect';
-      action = 'connect';
+  whenDOM.counts = counts;
+  whenDOM.history = history;
+  whenDOM.reset = function () {
+    debug('whenDOM: resetting select history and counts');
+    for (var key in this.counts) {
+      delete this.counts[key];
     }
-    if (!item) {
-      warn("".concat(logPrefix, ": instrument item '").concat(key, "' not defined"));
-      return {
-        then: function then() {
-          return null;
-        }
-      };
-    }
-    var thenFunc = function thenFunc(callback) {
-      var index = item[queueName].length + 1;
-      debug("".concat(logPrefix, ": '").concat(key, "' add on-").concat(action, " callback"), {
-        callback: callback
-      });
-      var newEntry = function newEntry() {
-        debug("".concat(logPrefix, ": '").concat(key, "'"), "fire on ".concat(action, ":"), callback);
-        callback(item.enode.markOnce("evolv-".concat(key, "-").concat(index)));
-      };
-      newEntry.callbackString = options && options.callbackString ? options.callbackString : callback.toString();
-      if (item[queueName].findIndex(function (entry) {
-        return entry.callbackString === newEntry.callbackString;
-      }) !== -1) {
-        debug("".concat(logPrefix, ": duplicate on-").concat(action, " callback not assigned to item '").concat(key, "':"), callback);
-        return;
-      }
-      item[queueName].push(newEntry);
-      if (queueName === 'onConnect' && sandbox.instrument.queue[key].enode.isConnected()) newEntry();
-    };
-    return {
-      then: thenFunc,
-      // Deprecated
-      thenInBulk: thenFunc,
-      // Deprecated
-      reactivateOnChange: function reactivateOnChange() {}
-    };
+    this.history.length = 0;
   };
+  return whenDOM;
 }
 function initializeWhenElement(sandbox) {
   return function (select) {
@@ -846,9 +877,9 @@ function initializeWhenElement(sandbox) {
           keyPrefix: 'when-element-',
           logPrefix: 'whenElement',
           type: 'single',
-          callbackString: callback.toString
-        }).then(function (enodes) {
-          return callback(enodes.el[0]);
+          hash: hash(callback.toString())
+        }).then(function (enode) {
+          return callback(enode.el[0]);
         });
       }
     };
@@ -861,11 +892,9 @@ function initializeWhenElements(sandbox) {
         sandbox.whenDOM(select, {
           keyPrefix: 'when-elements-',
           logPrefix: 'whenElements',
-          callbackString: callback.toString
-        }).then(function (enodes) {
-          return enodes.each(function (enode) {
-            return callback(enode.el[0]);
-          });
+          hash: hash(callback.toString())
+        }).then(function (enode) {
+          return callback(enode.el[0]);
         });
       }
     };
@@ -895,10 +924,10 @@ function initializeWaitUntil(sandbox) {
           },
           timeout: timeout || null,
           startTime: performance.now(),
-          callbackString: _callback.toString()
+          hash: hash(_callback.toString())
         };
         if (queue.some(function (entry) {
-          return entry.callbackString === newEntry.callbackString;
+          return entry.hash === newEntry.hash;
         })) {
           debug("waitUntil: duplicate callback not added to interval poll queue", _callback);
           return;
@@ -927,7 +956,8 @@ function initializeSandbox(name) {
   sandbox.select = select;
   sandbox.selectAll = selectAll;
   if (sandbox.name !== 'catalyst') {
-    sandbox.$$ = initialize$$(sandbox);
+    sandbox.selectInstrument = initializeSelectInstrument(sandbox);
+    sandbox.$$ = sandbox.selectInstrument;
     sandbox.store = initializeStore(sandbox);
     sandbox.app = {};
     sandbox.instrument = initializeInstrument(sandbox);

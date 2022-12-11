@@ -30,7 +30,9 @@ function initializeLogs(sandbox) {
         ? environmentLogDefaults[environmentId]
         : null;
     const localStorageItem = localStorage.getItem('evolv:catalyst-logs');
-    const localStorageMatch = localStorageItem.match(/silent|normal|debug/i);
+    const localStorageMatch = localStorageItem
+        ? localStorageItem.match(/silent|normal|debug/i)
+        : null;
     const localStorageLogs = localStorageMatch ? localStorageMatch[0] : null;
 
     sandbox.logs = sandbox.logs || 'normal';

@@ -40,12 +40,6 @@ function initializeInstrument(sandbox) {
             newEnode.hasClass(className) ||
             (newEnode.doesExist() && className === null);
 
-        // debug('process instrument:', `'${key}'`, {
-        //     wasConnected,
-        //     isConnected,
-        //     hasClass,
-        // });
-
         if (
             (!wasConnected && isConnected) ||
             (isConnected && !hasClass) ||
@@ -160,17 +154,19 @@ function initializeInstrument(sandbox) {
         for (const key in instrument.queue) {
             instrument.remove(key);
         }
+
+        sandbox.whenDOM.reset();
     };
 
     return instrument;
 }
 
-function initialize$$(sandbox) {
+function initializeSelectInstrument(sandbox) {
     return (key) => {
         const item = sandbox.instrument.queue[key];
 
         if (!item) {
-            warn(`$$: '${key}' not found in instrument queue`);
+            warn(`select instrument: '${key}' not found in instrument queue`);
             return $();
         } else if (!item.enode.isConnected()) {
             return $();
@@ -180,4 +176,4 @@ function initialize$$(sandbox) {
     };
 }
 
-export { initializeInstrument, initialize$$ };
+export { initializeInstrument, initializeSelectInstrument };

@@ -1,7 +1,7 @@
 import { version } from '../../package.json';
 import { initializeLogs } from './logs';
 import { $, select, selectAll } from './enode';
-import { initialize$$, initializeInstrument } from './instrument';
+import { initializeSelectInstrument, initializeInstrument } from './instrument';
 import { initializeEvolvContext, initializeTrack } from './evolv-context';
 import { initializeStore } from './store';
 import {
@@ -37,7 +37,8 @@ function initializeSandbox(name) {
     sandbox.selectAll = selectAll;
 
     if (sandbox.name !== 'catalyst') {
-        sandbox.$$ = initialize$$(sandbox);
+        sandbox.selectInstrument = initializeSelectInstrument(sandbox);
+        sandbox.$$ = sandbox.selectInstrument;
         sandbox.store = initializeStore(sandbox);
         sandbox.app = {};
         sandbox.instrument = initializeInstrument(sandbox);
