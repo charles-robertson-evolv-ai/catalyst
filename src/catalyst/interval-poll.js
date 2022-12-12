@@ -32,8 +32,6 @@ function initializeIntervalPoll(catalyst) {
                 queue.splice(i, 1);
             }
         }
-
-        return queue.length;
     }
 
     function processQueues() {
@@ -46,7 +44,9 @@ function initializeIntervalPoll(catalyst) {
                     if (sandbox._evolvContext.state.current === 'inactive')
                         continue;
                     anySandboxActive = true;
-                    queueTotal += processQueue(sandbox);
+
+                    processQueue(sandbox);
+                    queueTotal += sandbox._intervalPoll.queue.length;
                 }
 
                 if (!anySandboxActive) {
@@ -76,4 +76,16 @@ function initializeIntervalPoll(catalyst) {
     };
 }
 
-export { initializeIntervalPoll };
+function initializeSandboxIntervalPoll(sandbox) {
+    return {
+        queue: [],
+        reset: () => {
+            if (sandbox._intervalPoll.queue.length > 0) {
+                sandbox.debug('interval poll: clear queue');
+                sandbox._intervalPoll.queue = [];
+            }
+        },
+    };
+}
+
+export { initializeIntervalPoll, initializeSandboxIntervalPoll };

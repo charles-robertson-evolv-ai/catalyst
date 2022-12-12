@@ -13,6 +13,7 @@ function initializeEvolvContext(sandbox) {
         onDeactivate: [
             window.evolv.catalyst._globalObserver.disconnect,
             sandbox.instrument.deinstrument,
+            sandbox._intervalPoll.reset,
         ],
         initializeActiveKeyListener: (value) => {
             debug('active key listener: init');

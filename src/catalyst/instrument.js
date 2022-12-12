@@ -150,11 +150,11 @@ function initializeInstrument(sandbox) {
     };
 
     instrument.deinstrument = () => {
-        debug('deinstrument: removing classes and clearing instrument queue');
+        debug('deinstrument: removing classes and clearing queues');
         for (const key in instrument.queue) {
             instrument.remove(key);
         }
-
+        instrument._onMutate = [];
         sandbox.whenDOM.reset();
     };
 

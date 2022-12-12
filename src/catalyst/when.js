@@ -289,7 +289,7 @@ function initializeWhenDOM(sandbox) {
     whenDOM.counts = counts;
     whenDOM.history = history;
     whenDOM.reset = function () {
-        debug('whenDOM: resetting select history and counts');
+        debug('whenDOM: reset selector history');
 
         for (const key in this.counts) {
             delete this.counts[key];
@@ -335,9 +335,6 @@ function initializeWhenElements(sandbox) {
 }
 
 function initializeWaitUntil(sandbox) {
-    sandbox._intervalPoll = {
-        queue: [],
-    };
     const debug = sandbox.debug;
     const warn = sandbox.warn;
 

@@ -3,6 +3,7 @@ import { initializeLogs } from './logs';
 import { $, select, selectAll } from './enode';
 import { initializeSelectInstrument, initializeInstrument } from './instrument';
 import { initializeEvolvContext, initializeTrack } from './evolv-context';
+import { initializeSandboxIntervalPoll } from './interval-poll';
 import { initializeStore } from './store';
 import {
     initializeWhenContext,
@@ -42,6 +43,7 @@ function initializeSandbox(name) {
         sandbox.store = initializeStore(sandbox);
         sandbox.app = {};
         sandbox.instrument = initializeInstrument(sandbox);
+        sandbox._intervalPoll = initializeSandboxIntervalPoll(sandbox);
         sandbox._evolvContext = initializeEvolvContext(sandbox);
         sandbox.whenContext = initializeWhenContext(sandbox);
         sandbox.whenMutate = initializeWhenMutate(sandbox);
