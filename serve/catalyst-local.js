@@ -40,9 +40,11 @@
             : null;
         const localStorageLogs = localStorageMatch ? localStorageMatch[0] : null;
 
-        sandbox.logs = sandbox.logs || 'normal';
-        if (environmentLogs) sandbox.logs = environmentLogs;
-        if (localStorageLogs) sandbox.logs = localStorageLogs;
+        if (environmentLogs === 'silent') {
+            sandbox.logs = localStorageLogs || 'silent';
+        } else {
+            sandbox.logs = localStorageLogs || sandbox.logs || 'normal';
+        }
 
         sandbox.logColor = localStorageItem
             ? localStorageItem.includes('color')
@@ -638,11 +640,11 @@
         };
 
         instrument.deinstrument = () => {
-            debug('deinstrument: removing classes and clearing instrument queue');
+            debug('deinstrument: removing classes and clearing queues');
             for (const key in instrument.queue) {
                 instrument.remove(key);
             }
-
+            instrument._onMutate = [];
             sandbox.whenDOM.reset();
         };
 
@@ -677,6 +679,7 @@
             onDeactivate: [
                 window.evolv.catalyst._globalObserver.disconnect,
                 sandbox.instrument.deinstrument,
+                sandbox._intervalPoll.clearQueue,
             ],
             initializeActiveKeyListener: (value) => {
                 debug('active key listener: init');
@@ -774,6 +777,94 @@
                 // Backward compatibility
                 body.el[0].removeAttribute(trackKey);
             });
+        };
+    }
+
+    function initializeIntervalPoll(catalyst) {
+        function processQueue(sandbox) {
+            const queue = sandbox._intervalPoll.queue;
+
+            for (let i = 0; i < queue.length; i++) {
+                const entry = queue[i];
+                let timeElapsed = performance.now() - entry.startTime;
+
+                if (entry.timeout && entry.timeout < timeElapsed) {
+                    sandbox.debug('waitUntil: condition timed out', entry);
+                    queue.splice(i, 1);
+                    continue;
+                }
+
+                try {
+                    if (entry.condition()) {
+                        sandbox.debug(
+                            'waitUntil: condition met:',
+                            entry.condition,
+                            entry.condition(),
+                            `${(performance.now() - entry.startTime).toFixed(2)}ms`
+                        );
+                        entry.callback();
+                        queue.splice(i, 1);
+                    }
+                } catch (error) {
+                    // Prevents 60 error messages per second if the condition contains an error
+                    sandbox.warn(
+                        'waitUntil: error in condition, removing from queue',
+                        error
+                    );
+                    queue.splice(i, 1);
+                }
+            }
+        }
+
+        function processQueues() {
+            return new Promise((resolve) => {
+                const processQueuesLoop = () => {
+                    let anySandboxActive = false;
+                    let queueTotal = 0;
+
+                    for (const sandbox of catalyst.sandboxes) {
+                        if (sandbox._evolvContext.state.current === 'inactive')
+                            continue;
+                        anySandboxActive = true;
+
+                        processQueue(sandbox);
+                        queueTotal += sandbox._intervalPoll.queue.length;
+                    }
+
+                    if (!anySandboxActive) {
+                        catalyst.debug('interval poll: no active sandboxes');
+                        return resolve(false);
+                    } else if (queueTotal === 0) {
+                        catalyst.debug('interval poll: all queues empty');
+                        return resolve(false);
+                    } else {
+                        requestAnimationFrame(processQueuesLoop);
+                    }
+                };
+                processQueuesLoop();
+            });
+        }
+
+        return {
+            isPolling: false,
+            startPolling: async function () {
+                const intervalPoll = catalyst._intervalPoll;
+                if (intervalPoll.isPolling) return;
+                catalyst.debug('interval poll: start polling');
+                intervalPoll.isPolling = true;
+                intervalPoll.isPolling = await processQueues();
+                catalyst.debug('interval poll: stop polling');
+            },
+        };
+    }
+
+    function initializeSandboxIntervalPoll(sandbox) {
+        return {
+            queue: [],
+            clearQueue: () => {
+                sandbox.debug('interval poll: clear queue');
+                sandbox._intervalPoll.queue = [];
+            },
         };
     }
 
@@ -1089,7 +1180,7 @@
         whenDOM.counts = counts;
         whenDOM.history = history;
         whenDOM.reset = function () {
-            debug('whenDOM: resetting select history and counts');
+            debug('whenDOM: reset selector history');
 
             for (const key in this.counts) {
                 delete this.counts[key];
@@ -1135,9 +1226,6 @@
     }
 
     function initializeWaitUntil(sandbox) {
-        sandbox._intervalPoll = {
-            queue: [],
-        };
         const debug = sandbox.debug;
         const warn = sandbox.warn;
 
@@ -1206,6 +1294,7 @@
             sandbox.store = initializeStore(sandbox);
             sandbox.app = {};
             sandbox.instrument = initializeInstrument(sandbox);
+            sandbox._intervalPoll = initializeSandboxIntervalPoll(sandbox);
             sandbox._evolvContext = initializeEvolvContext(sandbox);
             sandbox.whenContext = initializeWhenContext(sandbox);
             sandbox.whenMutate = initializeWhenMutate(sandbox);
@@ -1221,84 +1310,6 @@
         sandbox.reactivate = () => {};
 
         return sandbox;
-    }
-
-    function initializeIntervalPoll(catalyst) {
-        function processQueue(sandbox) {
-            const queue = sandbox._intervalPoll.queue;
-
-            for (let i = 0; i < queue.length; i++) {
-                const entry = queue[i];
-                let timeElapsed = performance.now() - entry.startTime;
-
-                if (entry.timeout && entry.timeout < timeElapsed) {
-                    sandbox.debug('waitUntil: condition timed out', entry);
-                    queue.splice(i, 1);
-                    continue;
-                }
-
-                try {
-                    if (entry.condition()) {
-                        sandbox.debug(
-                            'waitUntil: condition met:',
-                            entry.condition,
-                            entry.condition(),
-                            `${(performance.now() - entry.startTime).toFixed(2)}ms`
-                        );
-                        entry.callback();
-                        queue.splice(i, 1);
-                    }
-                } catch (error) {
-                    // Prevents 60 error messages per second if the condition contains an error
-                    sandbox.warn(
-                        'waitUntil: error in condition, removing from queue',
-                        error
-                    );
-                    queue.splice(i, 1);
-                }
-            }
-
-            return queue.length;
-        }
-
-        function processQueues() {
-            return new Promise((resolve) => {
-                const processQueuesLoop = () => {
-                    let anySandboxActive = false;
-                    let queueTotal = 0;
-
-                    for (const sandbox of catalyst.sandboxes) {
-                        if (sandbox._evolvContext.state.current === 'inactive')
-                            continue;
-                        anySandboxActive = true;
-                        queueTotal += processQueue(sandbox);
-                    }
-
-                    if (!anySandboxActive) {
-                        catalyst.debug('interval poll: no active sandboxes');
-                        return resolve(false);
-                    } else if (queueTotal === 0) {
-                        catalyst.debug('interval poll: all queues empty');
-                        return resolve(false);
-                    } else {
-                        requestAnimationFrame(processQueuesLoop);
-                    }
-                };
-                processQueuesLoop();
-            });
-        }
-
-        return {
-            isPolling: false,
-            startPolling: async function () {
-                const intervalPoll = catalyst._intervalPoll;
-                if (intervalPoll.isPolling) return;
-                catalyst.debug('interval poll: start polling');
-                intervalPoll.isPolling = true;
-                intervalPoll.isPolling = await processQueues();
-                catalyst.debug('interval poll: stop polling');
-            },
-        };
     }
 
     function initializeCatalyst() {

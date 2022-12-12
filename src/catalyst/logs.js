@@ -35,9 +35,11 @@ function initializeLogs(sandbox) {
         : null;
     const localStorageLogs = localStorageMatch ? localStorageMatch[0] : null;
 
-    sandbox.logs = sandbox.logs || 'normal';
-    if (environmentLogs) sandbox.logs = environmentLogs;
-    if (localStorageLogs) sandbox.logs = localStorageLogs;
+    if (environmentLogs === 'silent') {
+        sandbox.logs = localStorageLogs || 'silent';
+    } else {
+        sandbox.logs = localStorageLogs || sandbox.logs || 'normal';
+    }
 
     sandbox.logColor = localStorageItem
         ? localStorageItem.includes('color')
