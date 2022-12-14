@@ -148,22 +148,31 @@ function initializeWhenItem(sandbox) {
 
             let newEntry;
             const index = item[queueName].length + 1;
-            const enode =
-                item.type === 'single' ? item.enode.first() : item.enode;
 
             if (!isInBulk) {
                 newEntry = () => {
+                    const enode =
+                        item.type === 'single'
+                            ? item.enode.first()
+                            : item.enode;
+
                     debug(
                         `${logPrefix}: '${key}'`,
                         `fire on ${action}:`,
                         callback
                     );
+
                     enode
                         .markOnce(`evolv-${key}-${index}`)
                         .each((enodeItem) => callback(enodeItem));
                 };
             } else {
                 newEntry = () => {
+                    const enode =
+                        item.type === 'single'
+                            ? item.enode.first()
+                            : item.enode;
+
                     debug(
                         `${logPrefix}: '${key}'`,
                         `fire in bulk on ${action}:`,

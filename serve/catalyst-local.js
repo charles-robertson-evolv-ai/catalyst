@@ -679,7 +679,7 @@
             onDeactivate: [
                 window.evolv.catalyst._globalObserver.disconnect,
                 sandbox.instrument.deinstrument,
-                sandbox._intervalPoll.clearQueue,
+                sandbox._intervalPoll.reset,
             ],
             initializeActiveKeyListener: (value) => {
                 debug('active key listener: init');
@@ -861,9 +861,11 @@
     function initializeSandboxIntervalPoll(sandbox) {
         return {
             queue: [],
-            clearQueue: () => {
-                sandbox.debug('interval poll: clear queue');
-                sandbox._intervalPoll.queue = [];
+            reset: () => {
+                if (sandbox._intervalPoll.queue.length > 0) {
+                    sandbox.debug('interval poll: clear queue');
+                    sandbox._intervalPoll.queue = [];
+                }
             },
         };
     }
@@ -1039,22 +1041,31 @@
 
                 let newEntry;
                 const index = item[queueName].length + 1;
-                const enode =
-                    item.type === 'single' ? item.enode.first() : item.enode;
 
                 if (!isInBulk) {
                     newEntry = () => {
+                        const enode =
+                            item.type === 'single'
+                                ? item.enode.first()
+                                : item.enode;
+
                         debug(
                             `${logPrefix}: '${key}'`,
                             `fire on ${action}:`,
                             callback
                         );
+
                         enode
                             .markOnce(`evolv-${key}-${index}`)
                             .each((enodeItem) => callback(enodeItem));
                     };
                 } else {
                     newEntry = () => {
+                        const enode =
+                            item.type === 'single'
+                                ? item.enode.first()
+                                : item.enode;
+
                         debug(
                             `${logPrefix}: '${key}'`,
                             `fire in bulk on ${action}:`,

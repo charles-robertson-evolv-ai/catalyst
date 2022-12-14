@@ -577,7 +577,7 @@ function initializeEvolvContext(sandbox) {
       previous: 'active'
     },
     onActivate: [window.evolv.catalyst._globalObserver.connect, window.evolv.catalyst._intervalPoll.startPolling],
-    onDeactivate: [window.evolv.catalyst._globalObserver.disconnect, sandbox.instrument.deinstrument, sandbox._intervalPoll.clearQueue],
+    onDeactivate: [window.evolv.catalyst._globalObserver.disconnect, sandbox.instrument.deinstrument, sandbox._intervalPoll.reset],
     initializeActiveKeyListener: function initializeActiveKeyListener(value) {
       debug('active key listener: init');
       debug('active key listener: waiting for window.evolv.client');
@@ -737,9 +737,11 @@ function initializeIntervalPoll(catalyst) {
 function initializeSandboxIntervalPoll(sandbox) {
   return {
     queue: [],
-    clearQueue: function clearQueue() {
-      sandbox.debug('interval poll: clear queue');
-      sandbox._intervalPoll.queue = [];
+    reset: function reset() {
+      if (sandbox._intervalPoll.queue.length > 0) {
+        sandbox.debug('interval poll: clear queue');
+        sandbox._intervalPoll.queue = [];
+      }
     }
   };
 }
@@ -861,9 +863,9 @@ function initializeWhenItem(sandbox) {
       });
       var newEntry;
       var index = item[queueName].length + 1;
-      var enode = item.type === 'single' ? item.enode.first() : item.enode;
       if (!isInBulk) {
         newEntry = function newEntry() {
+          var enode = item.type === 'single' ? item.enode.first() : item.enode;
           debug("".concat(logPrefix, ": '").concat(key, "'"), "fire on ".concat(action, ":"), callback);
           enode.markOnce("evolv-".concat(key, "-").concat(index)).each(function (enodeItem) {
             return callback(enodeItem);
@@ -871,6 +873,7 @@ function initializeWhenItem(sandbox) {
         };
       } else {
         newEntry = function newEntry() {
+          var enode = item.type === 'single' ? item.enode.first() : item.enode;
           debug("".concat(logPrefix, ": '").concat(key, "'"), "fire in bulk on ".concat(action, ":"), callback);
           callback(enode.markOnce("evolv-".concat(key, "-").concat(index)));
         };
