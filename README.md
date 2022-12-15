@@ -315,7 +315,6 @@ rule.whenContext('inactive').then(() => cleanUp());
 | :----- | :---------- | ----- |
 | `rule.whenMutate().then(<callback>)` | `<callback>`: Callback to added to the `onMutate` queue | |
 
-
 ```js
 // In this example there's a price on the page that can change dynamically so we create a function that updates the price and set it to fire whenever there's a mutation on the page.
 
@@ -344,34 +343,15 @@ rule.onMutate().then(updatePrice);
 ```
 ---
 
-### rule.whenDOM()
-
-Waits for the specified selector or ENode to be selectable on the page and will apply a callback to each element when found. Has two options for how callbacks are applied. `rule.whenDOM().then()` applies a callback to each element found individually. `rule.whenDOM().thenInBulk()` applies a callback to a group of elements if they are discovered at one time. *New in 0.6.0* - Does not allow a the same callback to be applied to the same selector more than once, allowing when methods to be nested without creating duplicate listeners.
-
-| Syntax | Description | Notes |
-| :----- | :---------- | ----- |
-| `rule.whenDOM(<selector>)` | String containing CSS selector<br>`rule.whenDOM('.product').then(el => {})` |
-| `rule.whenDOM(<ENode>)`    | ENode<br>`rule.whenDOM($('button')).then(button => button.addClass('evolv-button')` | Added in 0.6.0
-| `.then(ENode => callback(<ENode>))` | Executes a callback on each new element found in the ENode |
-| `.thenInBulk(ENode => callback(<ENode>))` | Executes a callback on the group of elements in the ENode |
-
-```js
-rule.whenDOM('h1').then((h1) => h1.text('New improved heading'));
-```
-
----
-
 ### .whenItem()
 
 The `whenItem()` method will wait for the selector associated with the specified instrument key and passes the found ENode to a callback. Has two options for how callbacks are applied. `rule.whenDOM().then()` applies a callback to an ENode containing each element found individually. `rule.whenDOM().thenInBulk()` applies a callback to an ENode containing a group of elements if they are discovered at one time. *New in 0.6.0* - Does not allow a the same callback to be applied to the same selector more than once, allowing when methods to be nested without creating duplicate listeners.  If the instrument item has the option `{ type: 'single' }` will return an ENode with the first element of the referenced ENode.
 
-| Syntax                        | Description                                                                               |
-| :---------------------------- | :---------------------------------------------------------------------------------------- |
-| `rule.whenItem(<instrument key>)` | String containing a key to the `instrument.queue` object<br>`rule.whenItem('product')` |
-|
-| `.then(ENode => callback(<ENode>))` | Executes a callback on each new element found in the ENode |
-| `.thenInBulk(ENode => callback(<ENode>))` | Executes a callback on the group of elements in the ENode |
-
+| Syntax | Description | Notes |
+| :----- | :---------- | :---- |
+| `rule.whenItem(<instrument key>)` | String containing a key to the `instrument.queue` object<br>`rule.whenItem('product')` | |
+| `.then(ENode => callback(<ENode>))` | Executes a callback on each new element found in the ENode | |
+| `.thenInBulk(ENode => callback(<ENode>))` | Executes a callback on the group of elements in the ENode | |
 
 ```js
 const rule = window.evolv.catalyst['ab-test'];
@@ -398,11 +378,85 @@ rule.whenItem('h2').thenInBulk(h2 => console.log(h2));
 //      ENode {el: [h2.evolv-h2, h2.evolv-h2, h2.evolv-h2], length: 3}
 ```
 
+
 ---
+
+### rule.whenDOM()
+
+Waits for the specified selector or ENode to be selectable on the page and will apply a callback to each element when found. Has two options for how callbacks are applied. `rule.whenDOM().then()` applies a callback to each element found individually. `rule.whenDOM().thenInBulk()` applies a callback to a group of elements if they are discovered at one time. *New in 0.6.0* - Does not allow a the same callback to be applied to the same selector more than once, allowing when methods to be nested without creating duplicate listeners.
+
+| Syntax | Description | Notes |
+| :----- | :---------- | ----- |
+| `rule.whenDOM(<selector>)` | String containing CSS selector<br>`rule.whenDOM('.product').then(el => {})` |
+| `rule.whenDOM(<ENode>)`    | ENode<br>`rule.whenDOM($('button')).then(button => button.addClass('evolv-button')` | Added in 0.6.0
+| `.then(<ENode> => callback(<ENode>))` | Creates an ENode for each new element found and passes them to a callback | |
+| `.thenInBulk(<ENode> => callback(<ENode>))` | Creates an ENode containing the group of elements found and passes it to a callback  | |
+
+```js
+rule.whenDOM('h1').then((h1) => h1.text('New improved heading'));
+```
+
+---
+
+### rule.whenElement()
+
+*New in 0.6.0* - A wrapper for `rule.whenDOM` that executes a callback on the first element (not the ENode) meeting the selection criteria.
+
+| Syntax | Description | Notes |
+| :----- | :---------- | ----- |
+| `rule.whenElement(<selector>)` | String containing CSS selector<br>`rule.whenElement('.product').then(product => {}).then(<element> => callback(<element>))` | |
+| `rule.whenElement(<ENode>)`    | ENode<br>`rule.whenElement($('button')).then(button => button.classList.add('evolv-button').then(<element> => callback(<element>))` | |
+
+```js
+const rule = window.evolv.catalyst.xyz;
+
+rule.whenElement('.product img').then(img => img.style.width = '100%');
+// Will only adjust the first product image found
+```
+
+---
+
+### rule.whenElements()
+
+*New in 0.6.0* - A wrapper for `rule.whenDOM` that executes a callback on each element (not ENode) meeting the selection criteria.
+
+| Syntax | Description | Notes |
+| :----- | :---------- | ----- |
+| `rule.whenElement(<selector>)` | String containing CSS selector<br>`rule.whenElement('.product').then(product => {}).then(<element> => callback(<element>))` | |
+| `rule.whenElement(<ENode>)`    | ENode<br>`rule.whenElement($('button')).then(button => button.classList.add('evolv-button').then(<element> => callback(<element>))` | |
+
+```js
+const rule = window.evolv.catalyst.xyz;
+
+rule.whenElements('.product img').then(img => img.style.width = '100%');
+// Will change the width of every product image found
+```
+
+---
+
+### rule.waitUntil()
+
+*New in 0.6.0* - Accepts a condition and passes a the result to a callback when it evaluates truthy. Useful for waiting for a window property to be assigned before running code. Behind the scenes it uses a global interval polling function using `requestAnimationFrame()` that is shared between all sandbox.
+
+| Syntax | Description | Notes |
+| :----- | :---------- | ----- |
+| `rule.waitUntil(<condition>)` | `<condition>`: a function that returns truthy | |
+
+```js
+const rule = window.evolv.catalyst.xyz;
+const log = rule.log
+
+rule.waitUntil(() => window.x).then(x => log('x:', x));
+
+setTimeout(() => window.x = 100, 3000);
+
+// After 3 seconds x will be assigned and you will see in the console:
+// [evolv-xyz] x: 100
+```
 
 ### rule.store
 
-A persistent object to house assets, variables, templates, icons, anything to be used in your experiment and shared between variants. It has the benefit of:
+A object to house assets, variables, templates, icons, etc to be used in your experiment and shared between variants. It has the benefit of:
 
 -   Only accessible from within the experiment sandbox so it doesn't pollute the global scope
 -   Allows assets to be defined in the context and used in variants
