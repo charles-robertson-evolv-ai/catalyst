@@ -1,16 +1,15 @@
 # Catalyst
 
-An Evolv **Environment Integration** to support the renderRule framework.
+A library to streamline writing Evolv AI experiments
 
 ## Goals
 
 The goals for this framework are to provide the following:
 
-1. Group all brittle site selectors in one place. This makes it easy to find the selectors based on customer's DOM that may be volatile.
-1. Maintain classes and references for elements to persist through mutations.
-1. An easy way to queue functions to run in response to SPA changes or mutations.
+1. Maintain classes and references to elements that persist through mutations.
 1. Handle idemponency.
-1. Easily identify which parts of the page are experimented on. This could support tooling, support, and debugging.
+1. Sandbox experiments to prevent namespace collisions.
+1. Queue functions to run in response to SPA changes or mutations.
 1. Experiment specific setTimeout and setInterval calls that handle SPA navigation automatically.
 1. Simplify coding and support declarative where possible.
 1. Allow simple experiments to remain simple and support more complex tests (model view rendering)
@@ -55,84 +54,192 @@ var $$ = rule.$$;
 
 ## catalyst
 
-The core Catalyst object containing sandboxes, selectors, instrumentation, mutation observers, as well as the `store` and `app` repositories for assets and functions that can be shared between variants.
+The core Catalyst object containing sandboxes, selectors, instrumentation, global mutation observer, as well as the `store` and `app` repositories for assets and functions that can be shared between variants.
 
 Adding a new property to the `catalyst` object creates a new sandbox allowing for multiple experiments to run on the page simultaneously without collisions.
 
-Typically the following will appear at the top the context _and_ each variant so that they all are working within the same sandbox.
+New syntax provides a different selector for single elements `$` vs. a group of elements `$$` the following should appear at the top the context _and_ each variant so that they all are working within the same sandbox.
 
 ```js
-var rule = evolv.renderRule.new_sandbox;
+var rule = evolv.renderRule.experiment_name;
 var store = rule.store;
-var $ = rule.$;
-var $$ = rule.$$;
+var $ = rule.select;
+var $$ = rule.selectAll;
+var $i = rule.selectInstrument;
+var log = rule.log;
 ```
 
 ---
 
-### $()
+### rule.log(), rule.warn(), rule.debug()
 
-The `$()` selector accepts a variety of inputs and returns an ENode.
+*New in 0.6.0* - Safe and enhanced logging to the console. Uses `console.info` or `console.warn` under the hood due to VBG restricting `console.log`, adding the following features:
 
-| Syntax               | Description                                                                                                                                                                                                                                                                                                         |
-| :------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| $(selector, context) | Selector: String containing CSS selector<br>Context (optional): Element, default is `document`<br>`$('p')`, `$('.some-class')`, `$('.parent > [attr=some-attribute]'`                                                                                                                                               |
-| $(XPath, context)    | Selector: String containing XPath selector (coming soon!)<br> Context (optional): Element, default is `document`<br>`$('//p')`, `$('//button[contains(text(),"Go")]')`, `$('//h3[contains(text(),"Heading")]/parent::*/parent::*')`                                                                                 |
-| $(ENode)             | Another ENode, returns a new ENode that references the original<br>`var pageHeading = $('h1'); var pageHeadingRef = $(pageHeading)`                                                                                                                                                                                 |
-| $(element)           | A variable referencing an element<br>`$(document.body)`                                                                                                                                                                                                                                                             |
-| $(array)             | An array of elements<br>`var everyLi = Array.from(document.querySelectorAll('li')); $(everyLi)`                                                                                                                                                                                                                     |
-| $(HTML)              | Creates a new ENode from an HTML string containing a single parent element<br>`$('<div class="evolv-card"><h3>Heading</h3><p>Some text.</p></div>')`<br>Note: `$('<div class="sibling-1"></div><div class="sibling-2"></div>')` will return an ENode only containing the first `div` (a bug ticket exists for this) |
-| $()                  | Creates a new empty ENode<br>`var a = $() // a.el: []`                                                                                                                                                                                                                                                              |
+- Automatically silenced in production so logging can be built into experiment code and revealed by setting the log level in local storage.
+- Logs are prefixed with [evolv-sandbox] to distinguish logs from multiple simultaneous experiments.
+- Optional log color to visually distinguish Catalyst logs from the host site.
+
+| Syntax               | Description     | Notes |
+| :------------------- | :-------------- | :---- |
+| `log(<arguments>)` | Strings or variables separated by commas, displayed at log level `normal` and `debug`<br>`log('heading:', heading)` | Added in 0.6.0 |
+| `warn(<arguments>)` | Strings or variables separated by commas, displayed at log level `normal` and `debug`<br>`warn('Selector not found', selector)` | Added in 0.6.0 |
+| `debug(<arguments>)` | Strings or variables separated by commas, displayed at log level `debug`<br>`debug('Selector found after', then - performance.now(), 'ms')` | Added in 0.6.0 |
+
+Log levels are set in two locations, a default for the environment and a local storage key, and can be overridden in experiment code, though it is only recommended in development. **Warning: Overrides in experiment code will not be silenced in production.**
+
+#### VCG
+
+| Environment Name | Environment Id | Default log level |
+| :--------------- | :------------- | :---------------- |
+| Production | `b02d16aa80` | `silent` |
+| Staging    | `add8459f1c` | `normal` |
+| Development | `55e68a2ba9` | `normal` |
+| Prototype | `eee20e49ae` | `normal` |
+| verizon qa | `b5d276c11b` | `normal` |
+
+#### VBG
+
+| Environment Name | Environment Id | Default log level |
+| :--------------- | :------------- | :---------------- |
+| Production | `13d2e2d4fb` | `silent` |
+| QA Testing    | `4271e3bfc8` | `normal` |
+| UAT | `6bfb40849e` | `normal` | (should this be silent?)
+
+#### Local Storage Options
+
+The key `evolv:catalyst-logs` can be set to `silent`, `normal`, or `debug` with an optional `color` flag.
+
+| key | value | description |
+| :-- | :---- | :---------- |
+| `evolv:catalyst-logs` | `silent` | Silences all catalyst logs |
+|                       | `normal` | Displays `log` and `warn` messages |
+|                       | `debug`  | Displays `log`, `warn`, and `debug` messages |
+|                       | `color`  | Enables color prefixes, `log` and `warn` messages are orange, `debug` messages are light orange<br>Setting `evolv:catalyst-logs` to `debug color` displays all logs and with color prefixes.
 
 ---
 
-### $$()
+### rule.instrument.add()
 
-The `$$()` selector accepts a key for `store.instrumentDOM` and returns the referenced ENode
+*New in 0.6.0* - Replaces [rule.store.instrumentDOM()](#rulestoreinstrumentdom). Accepts an instrument key, select function, and options or an array of these inputs and adds an entry in `rule.instrument.queue`.
 
-| Syntax | Description                                                                                                                   |
-| :----- | :---------------------------------------------------------------------------------------------------------------------------- |
-| $(key) | String containing `store.instrumentDOM` object key<br>`$$('page-heading')`, `$$('promo').find('p')`, `$$('product').parent()` |
+| Syntax               | Description     | Notes |
+| :------------------- | :-------------- | :---- |
+| `rule.instrument.add(<key>, <select>, <options>)` | `<key>`: A string for reference, can contain dashes or underscores but no white space<br>`<select>`: A function that returns an ENode<br>`() => $('h1')`<br>`<options>`: and object containing valid options |  |
+| `rule.instrument.add(<array>)` | `<array>`: An array containing arrays of arguments (see example below). | |
+
+| Option | Description | Notes |
+| :----- | :---------- | :---- |
+| `type` | String containing either `single` or `multi`, defaults to `multi`. Specifies whether the instrument should return an ENode containing a single element or multiple. Respected by `rule.selectInstrument` and `rule.whenItem`. Provides a slight performance improvement when set to `single` | |
+| `asClass` | String: Replaces the default class name<br>`null`: Disables adding instrument class | |
+| `onConnect` | An array of callbacks to be executed whenever a selected element is connected | |
+| `onDisconnect` | An array of callbacks to be executed whenever a selected element is disconnected | |
+
+*Note:* Calling `rule.instrument.add()` triggers the processing of the instrumentation, so for instrumenting multiple items the array approach is much more performant than calling successive `rule.instrument.add()` functions.
 
 ```js
-var rule = window.evolv.renderRule.ab_test;
-var store = rule.store;
-var $ = rule.$;
-var $$ = rule.$$;
+const rule = window.evolv.catalyst['ab-test']
+const $ = rule.select;
+const $$ = rule.selectAll;
+const $i = rule.selectInstrument;
 
-store.instrumentDOM({
-    'page-heading': {
-        get dom() {
-            return $('h1');
-        },
-    },
-});
+rule.instrument.add('body', () => $(document.body))
 
-var pageHeading = $$('page-heading'); // Output: pageHeading.el Array(1) 0: h1.evolv-page-heading
+rule.instrument.add([
+    ['page', () => $('#page'), {type: 'single'}]
+    ['page-heading', () => $i('page').find('h1'), {type: 'single'}],
+    ['section-headings', () => $$('h2')],
+    ['buttons', () => $$('button'), {asClass: 'button'}], // Applies class 'evolv-button' instead of 'evolv-buttons'
+    ['links', () => $$('a'), {asClass: null}], // Applies no class
+]);
+```
+---
+
+### rule.$()
+
+The default `$` selector prior to 0.6.0. Now a proxy for [rule.selectAll()](#ruleselectall).
+
+---
+
+### rule.$$()
+
+The default instrument selector prior to 0.6.0. Now a proxy for [rule.selectInstrument()](#ruleselectinstrument).
+
+---
+
+### rule.select()
+
+*New in 0.6.0* - Typically assigned to `$`, accepts a variety of inputs and returns an ENode containing a **single** element. 
+
+| Syntax               | Description     | Notes |
+| :------------------- | :-------------- | :---- |
+| `$(<selector>, <context>)` | `<selector>`: String containing CSS selector<br>Context (optional): Element, default is `document`<br>`$('p')`, `$('.some-class')`, `$('.parent > [attr=some-attribute]'` | |
+| `$(<XPath>, <context>)`    | Selector: String containing XPath selector<br> Context (optional): Element, default is `document`<br>`$('//p')`, `$('//button[contains(text(),"Go")]')`, `$('//h3[contains(text(),"Heading")]/parent::*/parent::*')` | |
+| `$(<ENode>)`             | Another ENode, returns a new ENode containing the first element of the original ENode<br>`var pageHeading = $('h1'); var pageHeadingRef = $(pageHeading) | |
+| `$(<element>)`           | A variable referencing an element<br>`$(document.body)` | |
+| `$(<array>)`             | An array of elements, returns an ENode containing the first element of the array<br>`var everyLi = Array.from(document.querySelectorAll('li')); $(everyLi)` | |
+| `$(<HTML>)`              | Creates a new ENode from an HTML string containing a single parent element<br>`$('<div class="evolv-card"><h3>Heading</h3><p>Some text.</p></div>')`<br>Note: Prior to v.0.6.0`$('<div class="sibling-1"></div><div class="sibling-2"></div>')` would return an ENode only containing the first `div` | |
+| `$()`                  | Creates a new empty ENode<br>`var a = $() // a.el: []` | |
+
+---
+
+### rule.selectAll()
+
+*New in 0.6.0* - Typically assigned to `$$`, accepts a variety of inputs and returns an ENode containing all matching elements. 
+
+| Syntax               | Description     | Notes |
+| :------------------- | :-------------- | :---- |
+| `$(<selector>, <context>)` | Selector: String containing CSS selector<br>Context (optional): Element, default is `document`<br>`$('p')`, `$('.some-class')`, `$('.parent > [attr=some-attribute]'` | |
+| `$(<XPath>, <context>)`    | Selector: String containing XPath selector<br> Context (optional): Element, default is `document`<br>`$('//p')`, `$('//button[contains(text(),"Go")]')`, `$('//h3[contains(text(),"Heading")]/parent::*/parent::*')` | |
+| `$(<ENode>)`             | Another ENode, returns a new ENode referencing the original ENode<br>`var pageHeading = $('h1'); var pageHeadingRef = $(pageHeading)` | |
+| `$(<element>)`           | A variable referencing an element<br>`$(document.body)` | |
+| `$(<array>)`             | An array of elements, returns an ENode the array<br>`var everyLi = Array.from(document.querySelectorAll('li')); $(everyLi)` | |
+| `$(<HTML>)`              | Creates a new ENode from an HTML string<br>`$('<div class="evolv-card"><h3>Heading</h3><p>Some text.</p></div>')`<br>**Note:** Prior to v.0.6.0`$('<div class="sibling-1"></div><div class="sibling-2"></div>')` would return an ENode only containing the first `div` | |
+| `$()`                  | Creates a new empty ENode<br>`var a = $() // a.el: []` | |
+
+---
+
+### rule.selectInstrument()
+
+*New in 0.6.0* - Typically assigned to `$i`, accepts a key for `rule.instrument.queue` and returns the referenced ENode. If the instrument item has the option `{ type: 'single' }` will return an ENode with the first element of the referenced ENode.
+
+| Syntax | Description | Notes |
+| :----- | :---------- | :---- |
+| `$(<key>)` | String containing a key for `rule.instrument.queue`<br>`$$('page-heading')`, `$$('promo').find('p')`, `$$('product').parent()` | |
+
+```js
+var rule = window.evolv.catalyst.ab_test;
+var $ = rule.select;
+var $i = rule.selectInstrument;
+
+rule.instrument.add('page-heading', () => $('h1'))
+
+var pageHeading = $i('page-heading'); // Output: pageHeading.el Array(1) 0: h1.evolv-page-heading
 ```
 
 ---
 
 ### rule.track()
 
-Applies a variant-specific attribute to the `body` to allow you define all the variant CSS at the Context level. If multiple variants are active simultaneously they will be space-delimited in the attribute.
+Applies a variant-specific attribute to the `body` to allow you define all the variant CSS at the context level. If multiple variants are active simultaneously they will be space-delimited in the attribute. *New in 0.6.0* - Attribute will be removed with SPA navigation away from the page.
 
-**Note:** With 11 or more variants it's easy to misapply styles because `body[evolv-ab_test*='1-1']` matches `<body evolv-ab_text="11-1">` this can solved by using brackets around your variant identifiers. For example: `rule.track('[1-1]')`.
+*New in 0.6.0* - Also applies a variant-specific class to the `body` element;
 
-| Syntax              | Description                                            |
-| :------------------ | :----------------------------------------------------- |
-| rule.track(variant) | String containing a variant key<br>`rule.track('1-1')` |
+**Note:** With 11 or more variants it's easy to misapply styles because `body[evolv-ab_test*='1-1']` matches `<body evolv-ab_text="11-1">` this can solved by using brackets around your variant identifiers. For example: `rule.track('[1-1]')`. This issue does not exist if you reference the new class instead of the attribute.
+
+| Syntax              | Description                                            | Notes |
+| :------------------ | :----------------------------------------------------- | ----- |
+| `rule.track(<variant>)` | String containing a variant key<br>`rule.track('1-1')`, `rule.track('c1v1')` | |
 
 Context JS:
 
 ```js
-var rule = window.evolv.renderRule.ab_test;
+var rule = window.evolv.catalyst['ab-test'];
 ```
 
 Context SASS
 
 ```sass
-body[evolv-ab_test*='1-1'] {
+body.evolv-ab-test-c1v1 {
     .evolv {
         &-heading {
             font-size: 3rem;
@@ -140,10 +247,10 @@ body[evolv-ab_test*='1-1'] {
     }
 }
 
-body[evolv-ab_test*='2-2'] {
+body.evolv-ab-test-c1v2 {
     .evolv {
         &-heading {
-            color: rebeccapurple;
+            font-size: 4rem;
         }
     }
 }
@@ -152,36 +259,101 @@ body[evolv-ab_test*='2-2'] {
 Variant C1V1 JS:
 
 ```js
-var rule = window.evolv.renderRule.ab_test;
-rule.track('1-1');
+var rule = window.evolv.catalyst['ab-test'];
+rule.track('c1v1');
 ```
 
 Variant C2V2 JS:
 
 ```js
-var rule = window.evolv.renderRule.ab_test;
-rule.track('2-2');
+var rule = window.evolv.catalyst['ab-test'];
+rule.track('c1v2');
 ```
 
 Target HTML where variant C1V1 and C2V2 are active:
 
 ```html
-<body evolv-ab_test="1-1 2-2">
+<body class="evolv-ab-test-c1v1 evolv-ab-test-c1v2" evolv-ab_test="c1v1 c1v2">
     <h1 class="evolv-heading">Heading</h1>
     <!-- Here the h1 would receives the styles from both variants -->
     ...
 </body>
 ```
+---
+### rule.whenContext()
 
+*New in 0.6.0* - Listens for `evolv.client.getActiveKeys` and fires a callback when the sandbox state changes to `active` or `inactive`. Useful for SPA cleanup functions.
+
+| Syntax | Description | Notes |
+| :----- | :---------- | ----- |
+| `rule.whenContext(<state>).then(<callback>)` | `<state>`: String containing `active` or `inactive`<br>`<callback>`: Callback to be added to the `onActivate` or `onDeactivate` queue | |
+
+```js
+const rule = window.evolv.catalyst['ab-test'];
+const $ = rule.select;
+
+rule.key = 'abtest' // Assigning the context key initiates the active key listener
+
+function makeThings() {
+    $('h1').afterMe('<p class="evolv-subheading">New Subheading</p>')
+}
+
+function cleanUp() {
+    $('.evolv-subheading').el[0].remove();
+}
+
+rule.whenContext('active').then(() => makeThings());
+rule.whenContext('inactive').then(() => cleanUp());
+```
+---
+
+### rule.whenMutate()
+
+*New in 0.6.0* - Fires a callback when there is a change detected on the page. More specifically this fires after processing the instrument queue which is debounced, so it doesn't fire on *every* mutation but when a mutation or cluster of mutations happen and then stop for at least 1/60th of a second. Can replace many instances that would have required `rule.watch()` without having to add another mutation observer to the page. Is that better for performance? Nobody knows.
+
+| Syntax | Description | Notes |
+| :----- | :---------- | ----- |
+| `rule.whenMutate().then(<callback>)` | `<callback>`: Callback to added to the `onMutate` queue | |
+
+
+```js
+// In this example there's a price on the page that can change dynamically so we create a function that updates the price and set it to fire whenever there's a mutation on the page.
+
+const rule = window.evolv.catalyst.xyz;
+const $ = rule.select;
+
+function updatePrice() {
+    const price = $('.price');
+    const priceString = price.text();
+
+    const newPrice = $('.evolv-price');
+    const newPriceString = `The price is currently ${price}`;
+
+    price.addClass('evolv-display-none');
+
+    if (!newPrice.exists()) {
+        $(`<p class="evolv-price">${newPriceString}</p>`).insertAfter(price)
+    } else {
+        newPrice.text(newPriceString)
+    }
+}
+
+updatePrice();
+
+rule.onMutate().then(updatePrice);
+```
 ---
 
 ### rule.whenDOM()
 
-The `whenDOM()` method will wait for the specified selector to be created or selectable on the page and will return a Promise. The Promise can then be used to apply further methods.
+Waits for the specified selector or ENode to be selectable on the page and will apply a callback to each element when found. Has two options for how callbacks are applied. `rule.whenDOM().then()` applies a callback to each element found individually. `rule.whenDOM().thenInBulk()` applies a callback to a group of elements if they are discovered at one time. *New in 0.6.0* - Does not allow a the same callback to be applied to the same selector more than once, allowing when methods to be nested without creating duplicate listeners.
 
-| Syntax                 | Description                                                                 |
-| :--------------------- | :-------------------------------------------------------------------------- |
-| rule.whenDOM(selector) | String containing CSS selector<br>`rule.whenDOM('.product').then(el => {})` |
+| Syntax | Description | Notes |
+| :----- | :---------- | ----- |
+| `rule.whenDOM(<selector>)` | String containing CSS selector<br>`rule.whenDOM('.product').then(el => {})` |
+| `rule.whenDOM(<ENode>)`    | ENode<br>`rule.whenDOM($('button')).then(button => button.addClass('evolv-button')` | Added in 0.6.0
+| `.then(ENode => callback(<ENode>))` | Executes a callback on each new element found in the ENode |
+| `.thenInBulk(ENode => callback(<ENode>))` | Executes a callback on the group of elements in the ENode |
 
 ```js
 rule.whenDOM('h1').then((h1) => h1.text('New improved heading'));
@@ -189,29 +361,41 @@ rule.whenDOM('h1').then((h1) => h1.text('New improved heading'));
 
 ---
 
-### rule.whenItem()
+### .whenItem()
 
-The `whenItem()` method will wait for the specified instrument key to be created or selectable on the page and will return a Promise object. The Promise object can then be used to apply further methods.
+The `whenItem()` method will wait for the selector associated with the specified instrument key and passes the found ENode to a callback. Has two options for how callbacks are applied. `rule.whenDOM().then()` applies a callback to an ENode containing each element found individually. `rule.whenDOM().thenInBulk()` applies a callback to an ENode containing a group of elements if they are discovered at one time. *New in 0.6.0* - Does not allow a the same callback to be applied to the same selector more than once, allowing when methods to be nested without creating duplicate listeners.  If the instrument item has the option `{ type: 'single' }` will return an ENode with the first element of the referenced ENode.
 
 | Syntax                        | Description                                                                               |
 | :---------------------------- | :---------------------------------------------------------------------------------------- |
-| rule.whenItem(instrument key) | String containing a key to the `store.instrumentDOM` object<br>`rule.whenItem('product')` |
+| `rule.whenItem(<instrument key>)` | String containing a key to the `instrument.queue` object<br>`rule.whenItem('product')` |
+|
+| `.then(ENode => callback(<ENode>))` | Executes a callback on each new element found in the ENode |
+| `.thenInBulk(ENode => callback(<ENode>))` | Executes a callback on the group of elements in the ENode |
+
 
 ```js
-var rule = window.evolv.renderRule.ab_test;
-var store = rule.store;
+const rule = window.evolv.catalyst['ab-test'];
 
-store.instrumentDOM({
-    'page-heading': {
-        get dom() {
-            return $('h1');
-        },
-    },
-});
+rule.instrument.add([
+    ['page-heading', () => $('h1')],
+    ['button', () => $('button')],
+    ['h2', () => $('h2')]
+]);
 
 rule.whenItem('page-heading').then((pageHeading) =>
     pageHeading.text('New improved heading')
 );
+// <h1 class="evolv-page-heading">New improved heading</h1>
+
+rule.whenItem('buttons').then(buttons => console.log(buttons));
+// Output:
+//      ENode {el: [button.evolv-button], length: 1}
+//      ENode {el: [button.evolv-button], length: 1}
+//      ENode {el: [button.evolv-button], length: 1} 
+
+rule.whenItem('h2').thenInBulk(h2 => console.log(h2));
+// Output:
+//      ENode {el: [h2.evolv-h2, h2.evolv-h2, h2.evolv-h2], length: 3}
 ```
 
 ---
@@ -222,7 +406,7 @@ A persistent object to house assets, variables, templates, icons, anything to be
 
 -   Only accessible from within the experiment sandbox so it doesn't pollute the global scope
 -   Allows assets to be defined in the context and used in variants
--   Contains instrumentDOM() method
+-   Contains `.instrumentDOM()` method *Deprecated, use [rule.instrument.add()](#) instead* (add link here)
 
 Context:
 
