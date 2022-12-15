@@ -38,7 +38,7 @@ function initializeInstrument(sandbox) {
         isConnected = newEnode.isConnected();
         hasClass =
             newEnode.hasClass(className) ||
-            (newEnode.doesExist() && className === null);
+            (newEnode.exists() && className === null);
 
         if (
             (!wasConnected && isConnected) ||
