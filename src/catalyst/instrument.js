@@ -168,11 +168,11 @@ function initializeSelectInstrument(sandbox) {
         if (!item) {
             warn(`select instrument: '${key}' not found in instrument queue`);
             return $();
-        } else if (!item.enode.isConnected()) {
+        } else if (item.state === 'disconnected') {
             return $();
         }
 
-        return item.enode;
+        return item.type === 'single' ? item.enode.first() : item.enode;
     };
 }
 
