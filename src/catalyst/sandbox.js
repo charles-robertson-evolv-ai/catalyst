@@ -33,7 +33,7 @@ function initializeSandbox(name) {
             window.evolv.catalyst._globalObserver.connect();
     }
 
-    sandbox.$ = $;
+    sandbox.$ = selectAll;
     sandbox.select = select;
     sandbox.selectAll = selectAll;
 
