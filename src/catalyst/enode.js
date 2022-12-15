@@ -64,19 +64,19 @@ const ENode = function (select, context, toNodeValueFunc) {
 };
 
 // Checks
-ENode.prototype.doesExist = function () {
+ENode.prototype.exists = function () {
     return this.length > 0 && this.el[0] !== null;
 };
 
 // Tests if all enodes are connected
 ENode.prototype.isConnected = function () {
-    return this.doesExist() && this.el.findIndex((e) => !e.isConnected) === -1;
+    return this.exists() && this.el.findIndex((e) => !e.isConnected) === -1;
 };
 
 // Tests if all enodes have the indicated class
 ENode.prototype.hasClass = function (className) {
     return (
-        this.doesExist() &&
+        this.exists() &&
         this.el.findIndex((e) => !e.classList.contains(className)) === -1
     );
 };
