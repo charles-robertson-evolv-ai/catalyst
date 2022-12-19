@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    var version = "0.1.25";
+    var version = "0.1.26";
 
     function initializeLogs(sandbox) {
         // Uses console.info() because VBG blocks console.log();
@@ -148,19 +148,19 @@
     };
 
     // Checks
-    ENode.prototype.doesExist = function () {
+    ENode.prototype.exists = function () {
         return this.length > 0 && this.el[0] !== null;
     };
 
     // Tests if all enodes are connected
     ENode.prototype.isConnected = function () {
-        return this.doesExist() && this.el.findIndex((e) => !e.isConnected) === -1;
+        return this.exists() && this.el.findIndex((e) => !e.isConnected) === -1;
     };
 
     // Tests if all enodes have the indicated class
     ENode.prototype.hasClass = function (className) {
         return (
-            this.doesExist() &&
+            this.exists() &&
             this.el.findIndex((e) => !e.classList.contains(className)) === -1
         );
     };
@@ -528,7 +528,7 @@
             isConnected = newEnode.isConnected();
             hasClass =
                 newEnode.hasClass(className) ||
-                (newEnode.doesExist() && className === null);
+                (newEnode.exists() && className === null);
 
             if (
                 (!wasConnected && isConnected) ||
@@ -658,11 +658,11 @@
             if (!item) {
                 warn(`select instrument: '${key}' not found in instrument queue`);
                 return $$1();
-            } else if (!item.enode.isConnected()) {
+            } else if (item.state === 'disconnected') {
                 return $$1();
             }
 
-            return item.enode;
+            return item.type === 'single' ? item.enode.first() : item.enode;
         };
     }
 
@@ -693,8 +693,12 @@
                             window.evolv.client.getActiveKeys
                     )
                     .then(() => {
+                        // If contextKey is null, getActiveKeys will still trigger and use rule.isActive to evaluate state
+                        const contextKey =
+                            typeof value === 'string' ? `web.${value}` : null;
+
                         window.evolv.client
-                            .getActiveKeys(`web.${value}`)
+                            .getActiveKeys(contextKey)
                             .listen((keys) => {
                                 let isActive;
 
@@ -1295,7 +1299,7 @@
                 window.evolv.catalyst._globalObserver.connect();
         }
 
-        sandbox.$ = $$1;
+        sandbox.$ = selectAll;
         sandbox.select = select;
         sandbox.selectAll = selectAll;
 
@@ -1346,14 +1350,14 @@
 
                             if (
                                 !hasInitializedActiveKeyListener &&
-                                (property === 'key' || property === 'isActive')
+                                (property === 'id' || property === 'isActive')
                             ) {
                                 sandbox._evolvContext.initializeActiveKeyListener(
                                     value
                                 );
                                 hasInitializedActiveKeyListener = true;
                             } else if (
-                                property === 'key' ||
+                                property === 'id' ||
                                 property === 'isActive'
                             ) {
                                 sandbox.debug(

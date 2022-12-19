@@ -12,7 +12,7 @@ function _unsupportedIterableToArray(o, minLen) { if (!o) return; if (typeof o =
 function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && iter[Symbol.iterator] != null || iter["@@iterator"] != null) return Array.from(iter); }
 function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) return _arrayLikeToArray(arr); }
 function _arrayLikeToArray(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) { arr2[i] = arr[i]; } return arr2; }
-var version = "0.1.25";
+var version = "0.1.26";
 function initializeLogs(sandbox) {
   // Uses console.info() because VBG blocks console.log();
 
@@ -129,20 +129,20 @@ var ENode = function ENode(select, context, toNodeValueFunc) {
 };
 
 // Checks
-ENode.prototype.doesExist = function () {
+ENode.prototype.exists = function () {
   return this.length > 0 && this.el[0] !== null;
 };
 
 // Tests if all enodes are connected
 ENode.prototype.isConnected = function () {
-  return this.doesExist() && this.el.findIndex(function (e) {
+  return this.exists() && this.el.findIndex(function (e) {
     return !e.isConnected;
   }) === -1;
 };
 
 // Tests if all enodes have the indicated class
 ENode.prototype.hasClass = function (className) {
-  return this.doesExist() && this.el.findIndex(function (e) {
+  return this.exists() && this.el.findIndex(function (e) {
     return !e.classList.contains(className);
   }) === -1;
 };
@@ -461,7 +461,7 @@ function initializeInstrument(sandbox) {
     }
     wasConnected = item.state === 'connected';
     isConnected = newEnode.isConnected();
-    hasClass = newEnode.hasClass(className) || newEnode.doesExist() && className === null;
+    hasClass = newEnode.hasClass(className) || newEnode.exists() && className === null;
     if (!wasConnected && isConnected || isConnected && !hasClass || type !== 'single' && isConnected && className === null && !enode.isEqualTo(newEnode)) {
       item.enode = newEnode;
       if (className) item.enode.addClass(className);
@@ -562,10 +562,10 @@ function initializeSelectInstrument(sandbox) {
     if (!item) {
       warn("select instrument: '".concat(key, "' not found in instrument queue"));
       return $();
-    } else if (!item.enode.isConnected()) {
+    } else if (item.state === 'disconnected') {
       return $();
     }
-    return item.enode;
+    return item.type === 'single' ? item.enode.first() : item.enode;
   };
 }
 function initializeEvolvContext(sandbox) {
@@ -584,7 +584,9 @@ function initializeEvolvContext(sandbox) {
       sandbox.waitUntil(function () {
         return window.evolv && window.evolv.client && window.evolv.client.getActiveKeys;
       }).then(function () {
-        window.evolv.client.getActiveKeys("web.".concat(value)).listen(function (keys) {
+        // If contextKey is null, getActiveKeys will still trigger and use rule.isActive to evaluate state
+        var contextKey = typeof value === 'string' ? "web.".concat(value) : null;
+        window.evolv.client.getActiveKeys(contextKey).listen(function (keys) {
           var isActive;
           if (typeof value === 'string') isActive = function isActive() {
             return keys.current.length > 0;
@@ -1058,7 +1060,7 @@ function initializeSandbox(name) {
     debug("init context sandbox: ".concat(name));
     if (window.evolv.catalyst._globalObserver.state === 'inactive') window.evolv.catalyst._globalObserver.connect();
   }
-  sandbox.$ = $;
+  sandbox.$ = selectAll;
   sandbox.select = select;
   sandbox.selectAll = selectAll;
   if (sandbox.name !== 'catalyst') {
@@ -1102,10 +1104,10 @@ function initializeCatalyst() {
         var sandboxProxy = new Proxy(sandbox, {
           set: function set(target, property, value) {
             target[property] = value;
-            if (!hasInitializedActiveKeyListener && (property === 'key' || property === 'isActive')) {
+            if (!hasInitializedActiveKeyListener && (property === 'id' || property === 'isActive')) {
               sandbox._evolvContext.initializeActiveKeyListener(value);
               hasInitializedActiveKeyListener = true;
-            } else if (property === 'key' || property === 'isActive') {
+            } else if (property === 'id' || property === 'isActive') {
               sandbox.debug('init sandbox: active key listener already initialized');
             }
             return true;

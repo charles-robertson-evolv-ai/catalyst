@@ -29,26 +29,11 @@ Add the following json config at environment level to enable the framework acros
 }
 ```
 
-## Usage
-
-For comprehensive examples see the Examples section at the bottom.
+---
 
 ## renderRule
 
-*deprecated as of 0.6.0, use [catalyst](#catalyst-1) instead*
-
-The core Catalyst object containing essential methods, `$` selectors, as well as the `store` and `app` repositories for assets and functions that can be shared between variants.
-
-Adding a new property to the `renderRule` object creates a new sandbox with all of the properties of the original `renderRule` which allows for multiple experiments to run on the page simultaneously without collisions.
-
-Typically the following will appear at the top the context _and_ each variant so that they all are working within the same sandbox.
-
-```js
-var rule = evolv.renderRule.new_sandbox;
-var store = rule.store;
-var $ = rule.$;
-var $$ = rule.$$;
-```
+*Deprecated as of 0.6.0, use [catalyst](#catalyst-1) instead*
 
 ---
 
@@ -58,10 +43,10 @@ The core Catalyst object containing sandboxes, selectors, instrumentation, globa
 
 Adding a new property to the `catalyst` object creates a new sandbox allowing for multiple experiments to run on the page simultaneously without collisions.
 
-New syntax provides a different selector for single elements `$` vs. a group of elements `$$` the following should appear at the top the context _and_ each variant so that they all are working within the same sandbox.
+New syntax provides a different selector for a single element `$` vs. a group of elements `$$`. The `$$` selector used for instrument items prior to `0.6.0` has been renamed to `$i`. For this to work the following should appear at the top the context _and_ each variant so that they all are working within the same sandbox.
 
 ```js
-var rule = evolv.renderRule.experiment_name;
+var rule = evolv.catalyst.experiment_name;
 var store = rule.store;
 var $ = rule.select;
 var $$ = rule.selectAll;
@@ -76,7 +61,7 @@ var log = rule.log;
 *New in 0.6.0* - Safe and enhanced logging to the console. Uses `console.info` or `console.warn` under the hood due to VBG restricting `console.log`, adding the following features:
 
 - Automatically silenced in production so logging can be built into experiment code and revealed by setting the log level in local storage.
-- Logs are prefixed with [evolv-sandbox] to distinguish logs from multiple simultaneous experiments.
+- Prefixing with `[evolv-sandbox]` to distinguish logs from multiple simultaneous experiments.
 - Optional log color to visually distinguish Catalyst logs from the host site.
 
 | Syntax               | Description     | Notes |
@@ -85,9 +70,9 @@ var log = rule.log;
 | `warn(<arguments>)` | Strings or variables separated by commas, displayed at log level `normal` and `debug`<br>`warn('Selector not found', selector)` | Added in 0.6.0 |
 | `debug(<arguments>)` | Strings or variables separated by commas, displayed at log level `debug`<br>`debug('Selector found after', then - performance.now(), 'ms')` | Added in 0.6.0 |
 
-Log levels are set in two locations, a default for the environment and a local storage key, and can be overridden in experiment code, though it is only recommended in development. **Warning: Overrides in experiment code will not be silenced in production.**
+Log levels are set in two locations, a default for the environment and a local storage key. Log levels can be overridden in experiment code though it is not recommended as **overrides in experiment code will not be silenced in production**.
 
-#### VCG
+VCG
 
 | Environment Name | Environment Id | Default log level |
 | :--------------- | :------------- | :---------------- |
@@ -97,24 +82,92 @@ Log levels are set in two locations, a default for the environment and a local s
 | Prototype | `eee20e49ae` | `normal` |
 | verizon qa | `b5d276c11b` | `normal` |
 
-#### VBG
+VBG
 
 | Environment Name | Environment Id | Default log level |
 | :--------------- | :------------- | :---------------- |
 | Production | `13d2e2d4fb` | `silent` |
 | QA Testing    | `4271e3bfc8` | `normal` |
-| UAT | `6bfb40849e` | `normal` | (should this be silent?)
+| UAT | `6bfb40849e` | `normal` |
 
-#### Local Storage Options
+Local Storage Options
 
 The key `evolv:catalyst-logs` can be set to `silent`, `normal`, or `debug` with an optional `color` flag.
 
 | key | value | description |
 | :-- | :---- | :---------- |
-| `evolv:catalyst-logs` | `silent` | Silences all catalyst logs |
+| `evolv:catalyst-logs` | `silent` | Silences all logs |
 |                       | `normal` | Displays `log` and `warn` messages |
 |                       | `debug`  | Displays `log`, `warn`, and `debug` messages |
 |                       | `color`  | Enables color prefixes, `log` and `warn` messages are orange, `debug` messages are light orange<br>Setting `evolv:catalyst-logs` to `debug color` displays all logs and with color prefixes.
+
+Experiment Log Level Override
+
+**Warning: log level overrides in experiment code will not be silenced in production**
+
+```js
+const rule = window.evolv.catalyst.xyz;
+const { log, warn, debug } = rule;
+
+rule.logs = 'debug';
+rule.logColor = true; // Default is false
+```
+---
+
+### rule.id
+
+*New in 0.6.0* - The id for the current context. Declared at the context level, assigning this value initializes the active key listener for SPA handling. This is an alternative to [rule.isActive()](#ruleisactive).
+
+| Syntax               | Description     | Notes |
+| :------------------- | :-------------- | :---- |
+| `rule.id = <context id>` | `<context id>`: The id of the current context | Added in 0.6.0 |
+
+Within the context level of an experiment the id can be found attached to the `this` object.
+
+```js
+// In this example the context id is 'context_id'
+console.log(this.key) // Output: web.context_id
+
+const rule = window.evolv.catalyst.xyz
+rule.id = this.key.split('.')[1] // context_id
+```
+
+The context id can also be found in the metamodel. If the metamodel was created in the Web Editor `context_id` would be a randomly generated hash, if using a build process like the project scaffold you would manually assign it.
+
+```yml
+web:
+    context_id:
+        _id: context_id
+```
+
+The context key also corresponds to the class added to the `html` element when the experiment is active.
+
+```html
+<html class="evolv_web_context_id evolv_web_context_id_variable">
+```
+---
+
+### rule.isActive()
+
+Declared at the context level code, defines criteria for determining whether the current context is active. Assigning this function initializes the active key listener for SPA handling.
+
+| Syntax               | Description     | Notes |
+| :------------------- | :-------------- | :---- |
+| `rule.isActive = <function>` | `<function>`: A function that returns true when the current context is active | |
+
+The standard method for determining if the current context is active has been to check the `html` element for the context key.
+
+```js
+// In this example the context id is 'context_id'
+
+const rule = window.evolv.catalyst.xyz
+rule.isActive = () => {
+    return Array.from(document.querySelector('html').classList).includes(
+        'evolv_web_context_id'
+    );
+};
+```
+---
 
 ---
 
@@ -215,6 +268,10 @@ rule.instrument.add('page-heading', () => $('h1'))
 
 var pageHeading = $i('page-heading'); // Output: pageHeading.el Array(1) 0: h1.evolv-page-heading
 ```
+
+---
+
+### rule.key()
 
 ---
 
@@ -378,7 +435,6 @@ rule.whenItem('h2').thenInBulk(h2 => console.log(h2));
 //      ENode {el: [h2.evolv-h2, h2.evolv-h2, h2.evolv-h2], length: 3}
 ```
 
-
 ---
 
 ### rule.whenDOM()
@@ -422,7 +478,7 @@ rule.whenElement('.product img').then(img => img.style.width = '100%');
 
 | Syntax | Description | Notes |
 | :----- | :---------- | ----- |
-| `rule.whenElement(<selector>)` | String containing CSS selector<br>`rule.whenElement('.product').then(product => {}).then(<element> => callback(<element>))` | |
+| `rule.whenElement(<selector>).then(<element> => <callback(<element>)>)` | String containing CSS selector<br>`rule.whenElement('.product').then(product => {})` | |
 | `rule.whenElement(<ENode>)`    | ENode<br>`rule.whenElement($('button')).then(button => button.classList.add('evolv-button').then(<element> => callback(<element>))` | |
 
 ```js
@@ -543,10 +599,10 @@ $('.heading').filter(':not(.heading-3)');
 
 The `contains()` method returns the elements in an ENode that contain the specified string. The method is case sensitive.
 
-| Syntax                | Description                       | Returns |
-| :-------------------- | :-------------------------------- | :------ |
-| ENode.contains(text)  | String containing text            | ENode   |
-| ENode.contains(regex) | Regular expression (coming soon!) | ENode   |
+| Syntax                | Description                       | Returns | Notes |
+| :-------------------- | :-------------------------------- | :------ | :---- |
+| ENode.contains(text)  | String containing text            | ENode   | |
+| ENode.contains(regex) | Regular expression                | ENode   | Added in 0.6.0 |
 
 Example:
 
@@ -556,8 +612,9 @@ Example:
 ```
 
 ```js
-$('button').contains('Checkout'); // Output: ENode containing [ button#checkout ]
-$('button').contains(/Learn more/); // Coming soon! Output: ENode containing [ button#learn-more ]
+const button = $('button');    // Output: ENode containing [ button#checkout, button#learn-more  ]
+button.contains('Checkout');   // Output: ENode containing [ button#checkout ]
+button.contains(/Learn more/); // Output: ENode containing [ button#learn-more ]
 ```
 
 ---
@@ -1046,8 +1103,8 @@ $('li').markOnce('evolv');
 
 The `on()` method adds event listeners to the specified selector.
 
-| Syntax                    | Description                                                                     | Returns      |
-| :------------------------ | :------------------------------------------------------------------------------ | :----------- |
+| Syntax           | Description            | Returns      |
+| :--------------- | :--------------------- | :----------- |
 | ENode.on(event, function) | Event: String containing event tag or multiple event tags separated by a space<br>Function: A function to be fired on the event | ENode (self) |
 
 ```html
@@ -1183,8 +1240,8 @@ $('li').attr({ 'data-testid': 'list-item' });
 
 Iterates over each element in an ENode and executes a callback function. Returns the original ENode.
 
-| Syntax               | Description                                                                                         | Returns      |
-| :------------------- | :-------------------------------------------------------------------------------------------------- | :----------- |
+| Syntax           | Description            | Returns      |
+| :--------------- | :--------------------- | :----------- |
 | ENode.each(callback) | Callback function of the form `(ENode) => {}`. Optional `index` and `array` parameters coming soon! | ENode (self) |
 
 ```html
@@ -1218,9 +1275,20 @@ Output:
 
 Waits for changes on the associated ENode before executing the callback function.
 
-| Syntax                            | Description                                                                                                      | Returns            |
-| :-------------------------------- | :--------------------------------------------------------------------------------------------------------------- | :----------------- |
+| Syntax           | Description            | Returns      |
+| :--------------- | :--------------------- | :----------- |
 | ENode.wait(config).then(callback) | Config: MutationObserver configuration, see defaults below<br>Callback: function of the form `(mutations) => {}` | Callback execution |
+
+Default config:
+
+```js
+{
+    attributes: false,
+    childList: true,
+    characterData: false,
+    subtree: true,
+}
+```
 
 ```html
 <ul id="sidebar">
@@ -1329,188 +1397,4 @@ Returns an ENode containing the last child element in the ENode.
 ```js
 $('li').last();
 // Output: ENode.el: Array(1) 0: <li>Third</li>
-```
-
----
-
-## Examples
-
-Once the integration is configured, you can setup context javascript.
-
-## Example 1 - Instrumentation
-
-### Context
-
-```js
-// This is where you initialize the `rule` sandbox. Note the sandbox name appended at the end of the `renderRule`
-var rule = window.evolv.renderRule.my_sandbox_1;
-
-// Getting a reference to the store. This is where shared variables related to the current render are stored.
-var store = rule.store;
-
-// Rename so it doesn't collide with jQuery. This is a basic selector function for catalyst.
-var $ = rule.$;
-
-/*
-instrumentDOM defines classes to keys. Those classes are then added to the one or more elements returned by the selectors. 
-By default, instrumentDOM prefixes the class name with `evolv-` and uses the property name as the suffix to the class.
-Each element is also tagged with a unique attribute to handle idempotency (prevent an element from being manipulated more than once).
-*/
-store.instrumentDOM({
-    'device-tile': {
-        get dom() {
-            return $('.device-tile, .byod-device-tile');
-        },
-    },
-    'pod-parent': {
-        get dom() {
-            return $('.evolv-deviceTile [id*=mvo_ovr_devices]')
-                .first()
-                .parent();
-        },
-    },
-    'button-parent': {
-        get dom() {
-            return $('button.addALine)').parent();
-        },
-        asClass: 'my-unique-button-class', // Will apply class of 'evolv-my-unique-button-class' instead of 'evolv-button-parent'
-    },
-});
-```
-
-## Example 2
-
-### Target page before
-
-```html
-<main>
-    <form>
-        <fieldset>
-            <legend>User Info</legend>
-            <ul>
-                <li>
-                    <label for="firstName">First Name</label>
-                    <input type="text" id="firstName" name="firstName" />
-                </li>
-                <li>
-                    <label for="lastName">Last Name</label>
-                    <input type="text" id="lastName" name="lastName" />
-                </li>
-                <li>
-                    <label for="telNumber">Tel Number</label>
-                    <input type="tel" id="telNumber" name="telNumber" />
-                </li>
-            </ul>
-        </fieldset>
-    </form>
-</main>
-```
-
-### Context
-
-```js
-var rule = window.evolv.renderRule.visible_homepage_1;
-var store = rule.store;
-var $ = rule.$;
-var $$ = rule.$$;
-
-store.instrumentDOM({
-    'form-input': {
-        get dom() {
-            return $('form fieldset input');
-        },
-    },
-    'form-label': {
-        get dom() {
-            return $('form fieldset label');
-        },
-    },
-});
-
-rule.whenDOM('.evolv-form-input').then((input) => {
-    var label = input.prev();
-    input.attr({ placeholder: label.text() });
-});
-```
-
-Alternatively use `whenItem` to reference the property name that was instrumented.
-
-```js
-rule.whenItem('form-input').then((input) => {
-    var label = input.prev();
-    input.attr({ placeholder: label.text() });
-});
-```
-
-### Context SASS
-
-```sass
-.evolv {
-  &-form-label {
-    display: none;
-  }
-}
-```
-
-### Target page after
-
-```html
-<!-- Note: all labels now are hidden by CSS -->
-<main>
-    <form>
-        <fieldset>
-            <legend>User Info</legend>
-            <ul>
-                <li>
-                    <label for="firstName" class="evolv-form-label"
-                        >First Name</label
-                    >
-                    <input
-                        type="text"
-                        id="firstName"
-                        name="firstName"
-                        class="evolv-form-input"
-                        placeholder="First Name"
-                    />
-                </li>
-                <li>
-                    <label for="lastName" class="evolv-form-label"
-                        >Last Name</label
-                    >
-                    <input
-                        type="text"
-                        id="lastName"
-                        name="lastName"
-                        class="evolv-form-input"
-                        placeholder="Last Name"
-                    />
-                </li>
-                <li>
-                    <label for="telNumber" class="evolv-form-label"
-                        >Tel Number</label
-                    >
-                    <input
-                        type="tel"
-                        id="telNumber"
-                        name="telNumber"
-                        class="evolv-form-input"
-                        placeholder="Tel Number"
-                    />
-                </li>
-            </ul>
-        </fieldset>
-    </form>
-</main>
-```
-
-You can use `whenItem('buttonParent')`, `whenItem(store.buttonParent)` to select specific elements of a page for manipulation like jQuery. One more similar option utilizes `whenDOM('.evolv-buttonParent')`
-
-```js
-rule.app.createMainButton = function(){
-  rule
-    .whenDOM('.evolv-buttonParent')
-    .then(function(buttonParent){
-      buttonParent.append(...);
-    }
-};
 ```

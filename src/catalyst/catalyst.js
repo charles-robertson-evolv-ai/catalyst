@@ -24,14 +24,14 @@ export function initializeCatalyst() {
 
                         if (
                             !hasInitializedActiveKeyListener &&
-                            (property === 'key' || property === 'isActive')
+                            (property === 'id' || property === 'isActive')
                         ) {
                             sandbox._evolvContext.initializeActiveKeyListener(
                                 value
                             );
                             hasInitializedActiveKeyListener = true;
                         } else if (
-                            property === 'key' ||
+                            property === 'id' ||
                             property === 'isActive'
                         ) {
                             sandbox.debug(

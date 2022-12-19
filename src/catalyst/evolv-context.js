@@ -27,8 +27,12 @@ function initializeEvolvContext(sandbox) {
                         window.evolv.client.getActiveKeys
                 )
                 .then(() => {
+                    // If contextKey is null, getActiveKeys will still trigger and use rule.isActive to evaluate state
+                    const contextKey =
+                        typeof value === 'string' ? `web.${value}` : null;
+
                     window.evolv.client
-                        .getActiveKeys(`web.${value}`)
+                        .getActiveKeys(contextKey)
                         .listen((keys) => {
                             let isActive;
 
